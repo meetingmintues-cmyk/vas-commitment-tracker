@@ -89,7 +89,7 @@ function branchDeptWeight(b){return BR_DEPT_W[b]||{srv:.5,bds:.5}}
 const norm=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''),nb=s=>String(s||'').toUpperCase().replace(/[^A-Z]/g,'');
 const byId={},byName={};ADV.forEach(a=>{byId[norm(a.id)]=a;byName[nb(a.name)]=a});
 /* ---------- format ---------- */
-const rs=n=>{const s=n<0?'-':'',a=Math.abs(n||0);return s+'₹'+(a>=1e7?(a/1e7).toFixed(2)+' Cr':a>=1e5?(a/1e5).toFixed(2)+' L':Math.round(a).toLocaleString('en-IN'))};
+const rs=n=>{const s=n<0?'-':'',a=Math.abs(n||0);return s+'₹'+(a>=1e7?Math.round(a/1e7)+' Cr':a>=1e5?Math.round(a/1e5)+' L':Math.round(a).toLocaleString('en-IN'))};
 const q=n=>Math.round(n||0).toLocaleString('en-IN');
 const fv=n=>U=='qty'?q(n):rs(n);
 const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -429,17 +429,31 @@ const stCls=p=>p==null?'':p>=100?'good':p>=85?'warn':'bad';
 
 /* ---------- views ---------- */
 const TABS=[['today','Today\'s Ask'],['till','Till Date'],['break','Breakdown'],['trend','Trend']];
-function head(T,tot){
+// Core KPI row — shown on every tab (Today's Ask, Till Date, Breakdown, Trend) so the
+// same 5 numbers anchor the whole dashboard. `p` (perfOf() for the current filter scope)
+// is optional and adds a compact "actual pace vs needed pace" line underneath, both
+// overall and per-advisor — if the real day-to-day growth is slower than what's needed,
+// that's called out explicitly instead of only showing in a separate panel.
+function head(T,tot,p){
   const target=tot.TA,A=tot.AA,
-        balance=Math.max(0,target-A),surplus=Math.max(0,A-target),
-        expectByYest=target*T.fP,paceGap=expectByYest-A,
+        TY=target*T.fP,                         // target as of yesterday (date-based, not flat)
+        balTY=Math.max(0,TY-A),aheadTY=Math.max(0,A-TY),
+        balance=Math.max(0,target-A),
         need=T.rem>0?balance/T.rem:balance,
-        run=T.past?A/T.past*T.tot:0,dayPlan=T.tot?target/T.tot:0;
-return`<div class="kpis"><div class="k"><div class="l">Month target</div><div class="v">${rs(target)}</div><div class="s">${T.tot} working days · ${rs(dayPlan)}/day flat pace</div></div>
-<div class="k"><div class="l">Achieved till yesterday</div><div class="v">${rs(A)}</div><div class="s">${target?(A/target*100).toFixed(1)+'% of month':'—'}</div></div>
-<div class="k"><div class="l">Balance to reach target</div><div class="v ${balance>0?'bad':'good'}">${balance>0?rs(balance):'Reached (+'+rs(surplus)+')'}</div><div class="s ${paceGap>0?'bad':'good'}">${paceGap>0?'Behind flat pace by '+rs(paceGap):'Ahead of flat pace by '+rs(-paceGap)}</div></div>
-<div class="k"><div class="l">Today's target <span style="font-weight:600;color:var(--mut)">(balance ÷ days left)</span></div><div class="v ${need>dayPlan*1.05?'bad':'good'}">${rs(need)}</div><div class="s">${T.rem} working day(s) left incl. today</div></div>
-<div class="k"><div class="l">Month-end at current pace</div><div class="v ${run>=target?'good':'bad'}">${T.past?rs(run):'—'}</div><div class="s">${T.past&&target?(run/target*100).toFixed(0)+'% of target':'no data yet'}</div></div></div>`}
+        dayPlan=T.tot?target/T.tot:0;
+  let kpis=`<div class="kpis"><div class="k"><div class="l">Month target</div><div class="v">${rs(target)}</div><div class="s">${T.tot} working days · ${rs(dayPlan)}/day flat pace</div></div>
+<div class="k"><div class="l">Achieved till yesterday</div><div class="v">${rs(A)}</div><div class="s">${target?(A/target*100).toFixed(0)+'% of month':'—'}</div></div>
+<div class="k"><div class="l">Target till yesterday</div><div class="v">${rs(TY)}</div><div class="s">as of ${addDays(DAY,-1)}</div></div>
+<div class="k"><div class="l">Balance vs yesterday's target</div><div class="v ${balTY>0?'bad':'good'}">${balTY>0?rs(balTY):'Ahead (+'+rs(aheadTY)+')'}</div><div class="s ${balTY>0?'bad':'good'}">${balTY>0?'Behind pace':'On/ahead of pace'}</div></div>
+<div class="k"><div class="l">Today's target <span style="font-weight:600;color:var(--mut)">(balance ÷ days left)</span></div><div class="v ${need>dayPlan*1.05?'bad':'good'}">${rs(need)}</div><div class="s">${T.rem} working day(s) left incl. today</div></div></div>`;
+  if(p){
+    const okDay=p.avgDay>=p.needDay*0.999, okAdv=p.avgAdvDay>=p.needAdvDay*0.999;
+    kpis+=`<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--mut);margin:-6px 0 14px">
+<span>Avg/day pace: <b class="${okDay?'good':'bad'}">${rs(p.avgDay)}</b> actual vs <b>${rs(p.needDay)}</b> needed <span class="needbadge ${okDay?'good':'bad'}">${okDay?'On track':'Growth too slow'}</span></span>
+<span>Avg/advisor/day: <b class="${okAdv?'good':'bad'}">${rs(p.avgAdvDay)}</b> actual vs <b>${rs(p.needAdvDay)}</b> needed <span class="needbadge ${okAdv?'good':'bad'}">${okAdv?'On track':'Growth too slow'}</span></span></div>`;
+  }
+  return kpis;
+}
 function totOf(){const {L,T}=compute('cluster','');const t={TA:0,AA:0,LA:0};L.forEach(e=>{t.TA+=e.TA;t.AA+=e.AA;t.LA+=e.LA});return{t,T}}
 // "Performance By" — same Cluster/Zone/Workshop/Advisor breakdown as the Breakdown tab
 // (shares the same `level`/drill() state), surfaced directly on the home page too, so
@@ -451,8 +465,8 @@ function homePerfBy(){
     const target=e.TA,tillDate=target*T.fP,achieved=e.AA,gap=Math.max(0,tillDate-achieved),pct=tillDate?achieved/tillDate*100:(achieved>0?100:null);
     const req=T.rem>0?Math.max(0,target-achieved)/T.rem:Math.max(0,target-achieved);
     const advN=level=='advisor'?1:ADV.filter(a=>gk(level,a.ix,a.br)===e.k && inF(a.c,a.z,a.br)).length;
-    const avgDay=T.tot?e.LA/T.tot:0;
-    return{k:e.k,l:e.l,target,tillDate,achieved,gap,pct,req,advN,avgDay};
+    const avgAdvDay=T.past&&advN?achieved/(T.past*advN):0, reqAdvDay=advN?req/advN:0;
+    return{k:e.k,l:e.l,target,tillDate,achieved,gap,pct,req,advN,avgAdvDay,reqAdvDay};
   }).sort((a,b)=>b.gap-a.gap);
   const top=rows.slice(0,12);
   // Achieved vs TARGET TILL DATE (not the full month figure) — this is what actually shows
@@ -468,30 +482,27 @@ function homePerfBy(){
 <div style="margin-bottom:10px">${seg([['cluster','Cluster'],['zone','Zone'],['workshop','Branch / Workshop'],['advisor','Advisor']],level,'setLevel')}</div>
 <div class="grid2">
 ${top.length?`<div class="cv" style="height:${Math.max(220,top.length*34)}px"><canvas id="homeChart"></canvas></div>`:'<div class="tw" style="padding:20px;color:var(--mut)">No rows for this scope</div>'}
-<div class="tw" style="max-height:${Math.max(220,top.length*34)+44}px;overflow:auto"><table><thead><tr><th>${level}</th><th>Month target</th><th>Target till date</th><th>Achieved</th><th>Gap</th><th>%</th><th>Req/day</th><th>Advisors</th><th>Avg/day (last mo)</th></tr></thead><tbody>
-${rows.length?rows.map(r=>{const s=st(r.pct);return`<tr class="cl" onclick="drill('${r.k.replace(/'/g,"\\'")}')"><td>${esc(r.l)}</td><td>${rs(r.target)}</td><td>${rs(r.tillDate)}</td><td>${rs(r.achieved)}</td><td class="${r.gap>0?'bad':'good'}">${rs(r.gap)}</td><td><span class="tag ${s[1]}">${r.pct==null?'—':r.pct.toFixed(0)+'%'}</span></td><td>${rs(r.req)}</td><td>${r.advN}</td><td>${rs(r.avgDay)}</td></tr>`}).join(''):'<tr><td colspan="9" style="text-align:center;color:var(--mut);padding:16px">No rows for this scope</td></tr>'}
+<div class="tw" style="max-height:${Math.max(220,top.length*34)+44}px;overflow:auto"><table><thead><tr><th>${level}</th><th>Month target</th><th>Target till date</th><th>Achieved</th><th>Gap</th><th>%</th><th>Req/day</th><th>Advisors</th><th>Avg/advisor/day</th><th>Req/advisor/day</th></tr></thead><tbody>
+${rows.length?rows.map(r=>{const s=st(r.pct),advOk=r.avgAdvDay>=r.reqAdvDay*0.999;return`<tr class="cl" onclick="drill('${r.k.replace(/'/g,"\\'")}')"><td>${esc(r.l)}</td><td>${rs(r.target)}</td><td>${rs(r.tillDate)}</td><td>${rs(r.achieved)}</td><td class="${r.gap>0?'bad':'good'}">${rs(r.gap)}</td><td><span class="tag ${s[1]}">${r.pct==null?'—':r.pct.toFixed(0)+'%'}</span></td><td>${rs(r.req)}</td><td>${r.advN}</td><td class="${advOk?'good':'bad'}">${rs(r.avgAdvDay)}</td><td>${rs(r.reqAdvDay)}</td></tr>`}).join(''):'<tr><td colspan="10" style="text-align:center;color:var(--mut);padding:16px">No rows for this scope</td></tr>'}
 </tbody></table></div></div>`}
 function bigBar(tot){const target=tot.TA,A=tot.AA,pct=target?Math.min(100,A/target*100):0;
-return`<div class="bigbar"><div class="row"><span class="pct">${pct.toFixed(1)}% achieved</span><span class="amt">${rs(A)} of ${rs(target)}</span></div><div class="pbbig"><i style="width:${pct}%"></i></div></div>`}
+return`<div class="bigbar"><div class="row"><span class="pct">${pct.toFixed(0)}% achieved</span><span class="amt">${rs(A)} of ${rs(target)}</span></div><div class="pbbig"><i style="width:${pct}%"></i></div></div>`}
 function vToday(){U='qty';const{L,T}=compute('item','');const{t}=totOf();L.sort((a,b)=>b.TA-a.TA);
 const SPLIT=itemSplit(DAY);
-return bigBar(t)+head(T,t)+perfStrip()+homePerfBy()+`<h2>What each item needs today — ${DAY} <span style="font-weight:400;color:var(--mut)">(remaining balance spread evenly across the working days left)</span></h2><div class="grid">`+L.filter(e=>e.T>0.5||e.A>0.5).map(e=>{
+return bigBar(t)+head(T,t,perfOf())+perfStrip()+homePerfBy()+`<h2>What each item needs today — ${DAY} <span style="font-weight:400;color:var(--mut)">(remaining balance spread evenly across the working days left)</span></h2><div class="grid">`+L.filter(e=>e.T>0.5||e.A>0.5).map(e=>{
   const code=itemOf(e.k),c=stCls(e.pct),price=P[code]||0;
   const noTarget=e.T<=0.5;
   const pctTD=e.pct==null?(e.A>0?100:0):Math.min(100,Math.max(0,e.pct));
-  const forecast=T.past?e.A/T.past*T.tot:0;
   const sp=SPLIT[code]||{srv:0,bds:0};
   return`<div class="ic2 ${c}" onclick="openItem('${code}')">
 <div class="h"><b>${dsp(code)}</b><span class="nm">${esc((e.l.split(' — ')[1]||''))}</span></div>
 <div class="hero">${q(Math.ceil(e.need))}<span class="heroLbl">units today</span></div>
 <div class="sub">${rs(e.need*price)} · plan/day ${q(e.dayPlan)}</div>
 <div class="pbbig g"><i style="width:${pctTD}%"></i></div>
-<div class="foot"><span class="p">${q(e.A)} of ${q(e.TP)} till yesterday</span><span>${e.gap>0?'behind '+q(e.gap):'ahead '+q(-e.gap)}</span></div>
-<div class="r"><span>Month target</span><b>${q(e.T)} u</b></div>
 <div class="r"><span>Target till yesterday</span><b>${q(e.TP)} u</b></div>
 <div class="r"><span>Achieved till yesterday</span><b>${q(e.A)} u</b></div>
-<div class="r"><span>Forecast (month-end)</span><b>${q(forecast)} u</b></div>
-<div class="extra"><span>Srv ${q(sp.srv)} · Bds ${q(sp.bds)}</span>${noTarget?'<span>No month target set</span>':''}</div>
+<div class="r ${e.gap>0?'gap':''}"><span>${e.gap>0?'Behind':'Ahead'}</span><b style="${e.gap<=0?'color:var(--good)':''}">${q(Math.abs(e.gap))} u</b></div>
+<div class="extra"><span>Month target ${q(e.T)} u · Srv ${q(sp.srv)} · Bds ${q(sp.bds)}</span>${noTarget?'<span>No target set</span>':''}</div>
 </div>`}).join('')+'</div>'}
 const itemOf=k=>k.split(' ')[0]=='RR'?'RD':k.split(' ')[0];
 function vTill(){U='qty';const{L,T}=compute('item','');const{t}=totOf();L.sort((a,b)=>b.gap*P[itemOf(b.k)]-a.gap*P[itemOf(a.k)]);
@@ -501,7 +512,7 @@ const palette=['#2E6FDB','#0F9D74','#C0392B','#E8A33D','#8E44AD','#16A085','#D35
 charts.push(new Chart(el,{type:'doughnut',data:{labels:pie.map(e=>e.l),datasets:[{data:pie.map(e=>e.v),backgroundColor:pie.map((_,i)=>palette[i%palette.length])}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:10,font:{size:11}}},title:{display:true,text:'Achieved revenue mix by item — till date'},tooltip:{callbacks:{label:c=>c.label+': '+rs(c.parsed)}}}}}));
 },0)}
 const SPLIT=itemSplit(DAY);
-return head(T,t)+`<h2>Achievement till date (up to ${DAY}, excluding today)</h2>`+
+return head(T,t,perfOf())+`<h2>Achievement till date (up to ${DAY}, excluding today)</h2>`+
 (pie.length?`<div class="cv" style="height:300px"><canvas id="pieChart"></canvas></div>`:'')+
 `<div class="tw"><table><thead><tr><th>Item</th><th>Month target</th><th>Target till date</th><th>Achieved (combined)</th><th>— Srv</th><th>— Bds</th><th>Gap</th><th>Achv %</th><th>Gap ₹</th><th>Status</th></tr></thead><tbody>`+
 L.filter(e=>e.T>0.5).map(e=>{const s=st(e.pct),code=itemOf(e.k),sp=SPLIT[code]||{srv:0,bds:0};return`<tr class="cl" onclick="openItem('${code}')"><td>${e.l}</td><td>${q(e.T)}</td><td>${q(e.TP)}</td><td>${q(e.A)}</td><td>${q(sp.srv)}</td><td>${q(sp.bds)}</td><td class="${e.gap>0?'bad':'good'}">${e.gap>0?'-'+q(e.gap):'+'+q(-e.gap)}</td><td>${e.pct==null?'—':e.pct.toFixed(0)+'%'}</td><td>${rs(e.gap*P[code])}</td><td><span class="tag ${s[1]}">${s[0]}</span></td></tr>`}).join('')+'</tbody></table></div><div style="font-size:12px;color:var(--mut);margin-top:8px">Counts are units. "Srv"/"Bds" are the SRV Item / BDS Item sheet totals that make up the combined Achieved figure. Click an item to see it by workshop / advisor.</div>'}
@@ -517,7 +528,7 @@ charts.push(new Chart(el,{type:'bar',data:{labels:top.map(e=>e.l),datasets:[
 {label:'Target till date',data:top.map(e=>e.TP),backgroundColor:'#C9D4EE',borderRadius:4,maxBarThickness:22}
 ]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'},title:{display:true,text:(sel?dsp(sel)+' — ':'')+'Achieved vs target till date, by '+level+' (top 12 by gap)'}},scales:{x:{ticks:{callback:v=>fv(v)}}}}}));
 },0)}
-return`<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:12px">${seg([['cluster','Cluster'],['zone','Zone'],['workshop','Workshop'],['advisor','Advisor']],level,'setLevel')}${seg([['amt','₹ Value'],['qty','Units']],U,'setU')}<b>${sel?dsp(sel)+' — '+esc(NM[sel]):'All items'}</b>${sel?'<button class="btn g" style="color:var(--acc);background:var(--line)" onclick="openItem(\'\')">Clear item</button>':''}</div>${ch}${advNote}
+return head(T,t,perfOf())+`<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:12px">${seg([['cluster','Cluster'],['zone','Zone'],['workshop','Workshop'],['advisor','Advisor']],level,'setLevel')}${seg([['amt','₹ Value'],['qty','Units']],U,'setU')}<b>${sel?dsp(sel)+' — '+esc(NM[sel]):'All items'}</b>${sel?'<button class="btn g" style="color:var(--acc);background:var(--line)" onclick="openItem(\'\')">Clear item</button>':''}</div>${ch}${advNote}
 ${top.length?`<div class="cv" style="height:${Math.max(220,top.length*34)}px"><canvas id="breakChart"></canvas></div>`:''}
 <div class="tw"><table><thead><tr><th>${level}</th><th>Last 3-mo avg</th><th>Month target</th><th>Plan/day</th><th>Target till date</th><th>Achieved</th><th>Gap</th><th>Achv %</th><th>Needed/day now</th><th>Status</th></tr></thead><tbody>`+
 (L.length?L.map(e=>{const s=st(e.pct);return`<tr class="cl" onclick="drill('${e.k.replace(/'/g,"\\'")}')"><td>${esc(e.l)}</td><td>${fv(e.L)}</td><td>${fv(e.T)}</td><td>${fv(e.dayPlan)}</td><td>${fv(e.TP)}</td><td>${fv(e.A)}</td><td class="${e.gap>0?'bad':'good'}">${e.gap>0?'-':'+'}${fv(Math.abs(e.gap))}</td><td>${e.pct==null?'—':e.pct.toFixed(0)+'%'}</td><td>${fv(e.need)}</td><td><span class="tag ${s[1]}">${s[0]}</span></td></tr>`}).join(''):'<tr><td colspan="10" style="text-align:center;color:var(--mut);padding:20px">No rows for this scope</td></tr>')+`</tbody></table></div><div style="font-size:12px;color:var(--mut);margin-top:8px">"Last 3-mo avg" = May–Jul average from the ₹1 Cr plan file. Sorted by largest gap first. Click a row to drill down.</div>`}
@@ -537,7 +548,7 @@ function cumulativeAt(day,item){
   return v;
 }
 function vTrend(){
-  const T=timeCtx(),sel=F.i;
+  const T=timeCtx(),sel=F.i;const{t:tHead}=totOf();
   let tgt=0;ADV.forEach(a=>{if(inF(a.c,a.z,a.br))tgt+=sel?(a.tA[sel]||0):a.tgt});
   const days=T.wd;
   const A=cumulativeAt(addDays(DAY,-1),sel);
@@ -554,7 +565,7 @@ function vTrend(){
   const L=(l,d,c,dash)=>({label:l,data:d,borderColor:c,backgroundColor:c,pointRadius:2,tension:.25,borderDash:dash||[],spanGaps:false});
   charts.push(new Chart($('c1'),{type:'line',data:{labels:lb,datasets:[L('Achieved / day',act,'#2E6FDB'),L('Plan / day',plan,'#0F9D74',[6,4]),L('Revised need / day',rev,'#C0392B',[2,3])]},options:o('Day-wise achievement — '+(sel?dsp(sel):'all items'))}));
   charts.push(new Chart($('c2'),{type:'line',data:{labels:lb,datasets:[L('Cumulative achieved',cA,'#2E6FDB'),L('Cumulative target',cT,'#0F9D74',[6,4]),L('Path needed to hit target',path,'#C0392B',[2,3])]},options:o('Cumulative vs target')}))},0);
-  return`<div class="cv"><canvas id="c1"></canvas></div><div class="cv"><canvas id="c2"></canvas></div><p style="font-size:11.5px;color:var(--mut);margin-top:-4px">"Achieved / day" is the change between consecutive sheet updates — if a day is skipped, its progress shows on the next date the sheet was updated.</p>`}
+  return head(T,tHead,perfOf())+`<div class="cv"><canvas id="c1"></canvas></div><div class="cv"><canvas id="c2"></canvas></div><p style="font-size:11.5px;color:var(--mut);margin-top:-4px">"Achieved / day" is the change between consecutive sheet updates — if a day is skipped, its progress shows on the next date the sheet was updated.</p>`}
 
 function render(){charts.forEach(c=>{try{c.destroy()}catch(e){}});charts=[];fillSel();$('tabs').innerHTML=TABS.map(([k,l])=>`<button class="${k==tab?'on':''}" onclick="tab='${k}';if(tab=='break')U=F.i?'qty':'amt';render()">${l}</button>`).join('');
 const ld=lastDataDate();const nBranches=Object.keys(REV).map(k=>k.split('|')[0]).filter((v,i,a)=>a.indexOf(v)===i).length;
