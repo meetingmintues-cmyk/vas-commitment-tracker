@@ -44,6 +44,16 @@ tbody tr:hover{background:rgba(46,111,219,.06)}tr.cl{cursor:pointer}
 .cv{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px;height:340px}
 details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:var(--mut)}summary{cursor:pointer;font-weight:700;color:var(--ink)}
 .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.chips .k{padding:9px 14px}.chips .v{font-size:16px}
+.bigbar{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:16px}
+.bigbar .row{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:700;margin-bottom:9px}
+.bigbar .row .pct{color:var(--warn)}.bigbar .row .amt{color:var(--mut);font-weight:600}
+.pbbig{height:12px;background:var(--line);border-radius:6px;overflow:hidden}.pbbig i{display:block;height:100%;background:var(--warn)}
+.ic2{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--mut);border-radius:14px;padding:14px 16px;cursor:pointer}
+.ic2:hover{box-shadow:0 4px 14px rgba(20,30,60,.12)}.ic2.good{border-left-color:var(--good)}.ic2.warn{border-left-color:var(--warn)}.ic2.bad{border-left-color:var(--bad)}
+.ic2 .h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}.ic2 .h b{font-size:13.5px}.ic2 .h .nm{font-size:11px;color:var(--mut);text-align:right;max-width:52%}
+.ic2 .r{display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;color:var(--mut)}.ic2 .r b{color:var(--ink);font-weight:700}.ic2 .r.gap b{color:var(--bad)}
+.ic2 .foot{display:flex;justify-content:space-between;font-size:11.5px;color:var(--mut);margin-top:6px}.ic2 .foot .p{font-weight:800;color:var(--ink)}
+.ic2 .extra{font-size:11px;color:var(--mut);margin-top:8px;padding-top:8px;border-top:1px solid var(--line);display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 10px}
 </style></head><body>
 <div class="top"><div><h1>VAS Projection · Commitment · Achievement</h1><small>AM Motors — live from your Google Sheet, daily VAS log</small></div>
 <div class="ctl"><span class="chip" id="tgtChip">Target</span>
@@ -320,6 +330,22 @@ function achievedBranchDept(branch,dept,cutoff,item){
   return {value:r.value, qty:0, load:r.load};
 }
 
+// per-item achieved units, kept SEPARATE by department (srv vs bds), for the current
+// cluster/zone/workshop filter — used to show "SRV" / "BDS" alongside the combined
+// figure the rest of the item views already report.
+function itemSplit(cutoff){
+  const out={}; ITEMS.forEach(i=>out[i]={srv:0,bds:0});
+  Object.keys(BRX).filter(b=>inF(BRX[b][1],BRX[b][0],b)).forEach(b=>{
+    ['srv','bds'].forEach(dept=>{
+      ITEMS.forEach(i=>{
+        const snap=latestBefore(ITEMQ[b+'|'+dept+'|'+i],cutoff);
+        if(snap) out[i][dept]+=snap.qty;
+      });
+    });
+  });
+  return out;
+}
+
 function compute(g,sel){
   const T=timeCtx(),M={};
   const get=(k,l)=>M[k]||(M[k]={k,l:l||k,TA:0,TQ:0,LA:0,LQ:0,AA:0,AQ:0});
@@ -373,10 +399,11 @@ function perfOf(){
   return {AA:value, AQ:load, LA, advN, avgDay:T.past?value/T.past:0, avgAdvDay:T.past?value/(T.past*advN):0, avgCar:load?value/load:0};
 }
 function perfStrip(){const p=perfOf();
-return`<h2>Current performance <span style="font-weight:400;color:var(--mut)">— this month so far, current filters</span></h2><div class="chips">
-<div class="k"><div class="l">Avg / Working Day</div><div class="v">${rs(p.avgDay)}</div></div>
-<div class="k"><div class="l">Avg / Advisor / Day</div><div class="v">${rs(p.avgAdvDay)}</div><div class="s">${p.advN} advisor(s) in scope</div></div>
-<div class="k"><div class="l">Avg / Car (ticket size)</div><div class="v">${p.AQ?rs(p.avgCar):'—'}</div><div class="s">${q(p.AQ)} car(s) serviced</div></div>
+return`<h2>Current Business Performance <span style="font-weight:400;color:var(--mut)">— this month so far, current filters</span></h2><div class="chips">
+<div class="k"><div class="l">Avg / Day</div><div class="v">${rs(p.avgDay)}</div><div class="s">${timeCtx().past} working day(s) so far</div></div>
+<div class="k"><div class="l">Avg / Advisor / Day</div><div class="v">${rs(p.avgAdvDay)}</div><div class="s">${p.advN} advisor(s)</div></div>
+<div class="k"><div class="l">Avg / Car (Ticket Size)</div><div class="v">${p.AQ?rs(p.avgCar):'—'}</div><div class="s">${q(p.AQ)} cars/units so far</div></div>
+<div class="k"><div class="l">Total Billed So Far</div><div class="v">${rs(p.AA)}</div><div class="s">this period</div></div>
 <div class="k"><div class="l">Last Month, Same Scope</div><div class="v">${rs(p.LA)}</div></div></div>`}
 
 function gk(g,ai,b){if(g=='cluster')return (BRX[b]||['Unmapped','Unmapped'])[1];if(g=='zone')return (BRX[b]||['Unmapped','Unmapped'])[0];if(g=='workshop')return b;return ai>=0?ADV[ai].id:'U|'+b}
@@ -398,11 +425,24 @@ return`<div class="kpis"><div class="k"><div class="l">Month target</div><div cl
 <div class="k"><div class="l">Today's target <span style="font-weight:600;color:var(--mut)">(balance ÷ days left)</span></div><div class="v ${need>dayPlan*1.05?'bad':'good'}">${rs(need)}</div><div class="s">${T.rem} working day(s) left incl. today</div></div>
 <div class="k"><div class="l">Month-end at current pace</div><div class="v ${run>=target?'good':'bad'}">${T.past?rs(run):'—'}</div><div class="s">${T.past&&target?(run/target*100).toFixed(0)+'% of target':'no data yet'}</div></div></div>`}
 function totOf(){const {L,T}=compute('cluster','');const t={TA:0,AA:0,LA:0};L.forEach(e=>{t.TA+=e.TA;t.AA+=e.AA;t.LA+=e.LA});return{t,T}}
+function bigBar(tot){const target=tot.TA,A=tot.AA,pct=target?Math.min(100,A/target*100):0;
+return`<div class="bigbar"><div class="row"><span class="pct">${pct.toFixed(1)}% achieved</span><span class="amt">${rs(A)} of ${rs(target)}</span></div><div class="pbbig"><i style="width:${pct}%"></i></div></div>`}
 function vToday(){U='qty';const{L,T}=compute('item','');const{t}=totOf();L.sort((a,b)=>b.TA-a.TA);
-return perfStrip()+head(T,t)+`<h2>What each item needs today — ${DAY} <span style="font-weight:400;color:var(--mut)">(remaining balance spread evenly across the working days left)</span></h2><div class="grid">`+L.filter(e=>e.T>0.5).map(e=>{const c=stCls(e.pct);
-return`<div class="ic ${c}" onclick="openItem('${itemOf(e.k)}')"><div class="n">${e.l.split(' — ')[0]}</div><div class="nm">${e.l.split(' — ')[1]}</div>
-<div class="big">${q(Math.ceil(e.need))} <span style="font-size:12px;font-weight:600;color:var(--mut)">units today</span></div><div class="sub">${rs(e.need*P[itemOf(e.k)])} · plan/day ${q(e.dayPlan)}</div>
-<div class="pb"><i style="width:${Math.min(100,e.T?e.A/e.T*100:0)}%"></i></div><div class="sub">Done ${q(e.A)} of ${q(e.T)} · ${e.gap>0?'behind '+q(e.gap):'ahead '+q(-e.gap)}</div></div>`}).join('')+'</div>'}
+const SPLIT=itemSplit(DAY);
+return bigBar(t)+head(T,t)+perfStrip()+`<h2>What each item needs today — ${DAY} <span style="font-weight:400;color:var(--mut)">(remaining balance spread evenly across the working days left)</span></h2><div class="grid">`+L.filter(e=>e.T>0.5).map(e=>{
+  const code=itemOf(e.k),c=stCls(e.pct),price=P[code]||0;
+  const pct=e.T?Math.min(100,e.A/e.T*100):0;
+  const gapRaw=(e.T-e.A)*price,gapLabel=gapRaw>0?'Gap':'Surplus',gapVal=Math.abs(gapRaw);
+  const avgDay=T.past?e.A/T.past:0,sp=SPLIT[code]||{srv:0,bds:0};
+  return`<div class="ic2 ${c}" onclick="openItem('${code}')">
+<div class="h"><b>${dsp(code)}</b><span class="nm">${esc((e.l.split(' — ')[1]||''))}</span></div>
+<div class="r"><span>Target (month)</span><b>${rs(e.T*price)}</b></div>
+<div class="r"><span>Achieved</span><b>${rs(e.A*price)}</b></div>
+<div class="r ${gapRaw>0?'gap':''}"><span>${gapLabel}</span><b style="${gapRaw<=0?'color:var(--good)':''}">${rs(gapVal)}</b></div>
+<div class="pbbig"><i style="width:${pct}%"></i></div>
+<div class="foot"><span class="p">${pct.toFixed(1)}% done</span><span>${q(e.A)}/${q(e.T)} units</span></div>
+<div class="extra"><span>Today: <b>${q(Math.ceil(e.need))} u</b></span><span>Per month: <b>${q(e.T)} u</b></span><span>Avg/day: <b>${q(avgDay)} u</b></span><span>Srv ${q(sp.srv)} · Bds ${q(sp.bds)}</span></div>
+</div>`}).join('')+'</div>'}
 const itemOf=k=>k.split(' ')[0]=='RR'?'RD':k.split(' ')[0];
 function vTill(){U='qty';const{L,T}=compute('item','');const{t}=totOf();L.sort((a,b)=>b.gap*P[itemOf(b.k)]-a.gap*P[itemOf(a.k)]);
 const pie=L.map(e=>({l:e.l.split(' — ')[0],v:e.A*P[itemOf(e.k)]})).filter(e=>e.v>0).sort((a,b)=>b.v-a.v);
@@ -410,10 +450,11 @@ if(pie.length){setTimeout(()=>{const el=$('pieChart');if(!el)return;
 const palette=['#2E6FDB','#0F9D74','#C0392B','#E8A33D','#8E44AD','#16A085','#D35400','#2C3E50','#27AE60','#C0392B','#7F8C8D','#2980B9','#F39C12','#9B59B6','#1ABC9C','#E74C3C'];
 charts.push(new Chart(el,{type:'doughnut',data:{labels:pie.map(e=>e.l),datasets:[{data:pie.map(e=>e.v),backgroundColor:pie.map((_,i)=>palette[i%palette.length])}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:10,font:{size:11}}},title:{display:true,text:'Achieved revenue mix by item — till date'},tooltip:{callbacks:{label:c=>c.label+': '+rs(c.parsed)}}}}}));
 },0)}
+const SPLIT=itemSplit(DAY);
 return head(T,t)+`<h2>Achievement till date (up to ${DAY}, excluding today)</h2>`+
 (pie.length?`<div class="cv" style="height:300px"><canvas id="pieChart"></canvas></div>`:'')+
-`<div class="tw"><table><thead><tr><th>Item</th><th>Month target</th><th>Target till date</th><th>Achieved</th><th>Gap</th><th>Achv %</th><th>Gap ₹</th><th>Status</th></tr></thead><tbody>`+
-L.filter(e=>e.T>0.5).map(e=>{const s=st(e.pct);return`<tr class="cl" onclick="openItem('${itemOf(e.k)}')"><td>${e.l}</td><td>${q(e.T)}</td><td>${q(e.TP)}</td><td>${q(e.A)}</td><td class="${e.gap>0?'bad':'good'}">${e.gap>0?'-'+q(e.gap):'+'+q(-e.gap)}</td><td>${e.pct==null?'—':e.pct.toFixed(0)+'%'}</td><td>${rs(e.gap*P[itemOf(e.k)])}</td><td><span class="tag ${s[1]}">${s[0]}</span></td></tr>`}).join('')+'</tbody></table></div><div style="font-size:12px;color:var(--mut);margin-top:8px">Counts are units. Click an item to see it by workshop / advisor.</div>'}
+`<div class="tw"><table><thead><tr><th>Item</th><th>Month target</th><th>Target till date</th><th>Achieved (combined)</th><th>— Srv</th><th>— Bds</th><th>Gap</th><th>Achv %</th><th>Gap ₹</th><th>Status</th></tr></thead><tbody>`+
+L.filter(e=>e.T>0.5).map(e=>{const s=st(e.pct),code=itemOf(e.k),sp=SPLIT[code]||{srv:0,bds:0};return`<tr class="cl" onclick="openItem('${code}')"><td>${e.l}</td><td>${q(e.T)}</td><td>${q(e.TP)}</td><td>${q(e.A)}</td><td>${q(sp.srv)}</td><td>${q(sp.bds)}</td><td class="${e.gap>0?'bad':'good'}">${e.gap>0?'-'+q(e.gap):'+'+q(-e.gap)}</td><td>${e.pct==null?'—':e.pct.toFixed(0)+'%'}</td><td>${rs(e.gap*P[code])}</td><td><span class="tag ${s[1]}">${s[0]}</span></td></tr>`}).join('')+'</tbody></table></div><div style="font-size:12px;color:var(--mut);margin-top:8px">Counts are units. "Srv"/"Bds" are the SRV Item / BDS Item sheet totals that make up the combined Achieved figure. Click an item to see it by workshop / advisor.</div>'}
 function openItem(i){F.i=i;tab='break';U=i?'qty':'amt';render()}
 function vBreak(){const sel=F.i||'';const{L,T}=compute(levelKey(),sel);const{t}=totOf();L.sort((a,b)=>b.gap-a.gap);
 const seg=(arr,cur,fn)=>`<div class="seg">${arr.map(([k,l])=>`<button class="${k==cur?'on':''}" onclick="${fn}('${k}')">${l}</button>`).join('')}</div>`;
