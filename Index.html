@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AM Motors — VAS Projection · Commitment · Achievement</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#F4F6FB;--card:#fff;--ink:#131A2B;--mut:#6B7688;--line:#E4E8F0;--nav:#0F1B3F;--acc:#2E6FDB;--good:#0F9D74;--goodbg:#E4F7F0;--warn:#C98A17;--warnbg:#FDF2E0;--bad:#C0392B;--badbg:#FBEAE8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);font-family:'Segoe UI',system-ui,-apple-system,Arial,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0C1220;--card:#151E33;--ink:#E8EDF7;--mut:#93A0B8;--line:#26314B;--goodbg:#0E3A2E;--warnbg:#3F3113;--badbg:#45201F}}
+:root[data-theme="dark"]{--bg:#0C1220;--card:#151E33;--ink:#E8EDF7;--mut:#93A0B8;--line:#26314B;--goodbg:#0E3A2E;--warnbg:#3F3113;--badbg:#45201F}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-size:14px}
+.top{background:var(--nav);color:#fff;padding:14px 22px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.top h1{font-size:17px;margin:0}.top small{color:#9FB0D6;font-size:11.5px}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:8px 13px;font-weight:700;font-size:12.5px;cursor:pointer}
+.btn.g{background:rgba(255,255,255,.12)}
+input,select{font:inherit;font-size:13px;padding:7px 9px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.top input{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:#fff}
+.chip{background:rgba(255,255,255,.12);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700}
+.bar{display:flex;gap:10px;flex-wrap:wrap;padding:12px 22px;background:var(--card);border-bottom:1px solid var(--line);align-items:center}
+.bar label{font-size:11px;color:var(--mut);font-weight:700;text-transform:uppercase;display:flex;flex-direction:column;gap:3px}
+.tabs{display:flex;gap:4px;padding:10px 22px 0;overflow-x:auto}
+.tabs button{border:0;background:none;padding:10px 16px;font-weight:700;font-size:13px;color:var(--mut);border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap}
+.tabs button.on{color:var(--acc);border-color:var(--acc)}
+main{padding:16px 22px 50px;max-width:1500px;margin:0 auto}
+.note{background:var(--warnbg);color:var(--warn);border-radius:10px;padding:9px 14px;font-size:12.5px;font-weight:600;margin-bottom:14px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+.k{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.k .l{font-size:11px;color:var(--mut);font-weight:700;text-transform:uppercase}.k .v{font-size:22px;font-weight:800;margin-top:4px}.k .s{font-size:12px;color:var(--mut);margin-top:2px}
+.good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+h2{font-size:15px;margin:18px 0 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.ic{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--mut);border-radius:14px;padding:13px 15px;cursor:pointer}
+.ic:hover{box-shadow:0 4px 14px rgba(20,30,60,.12)}.ic.good{border-left-color:var(--good);color:var(--ink)}.ic.warn{border-left-color:var(--warn);color:var(--ink)}.ic.bad{border-left-color:var(--bad);color:var(--ink)}
+.ic .n{font-weight:800}.ic .nm{font-size:11.5px;color:var(--mut);min-height:16px}.ic .big{font-size:24px;font-weight:800;margin:6px 0 0}.ic .sub{font-size:12px;color:var(--mut)}
+.pb{height:6px;background:var(--line);border-radius:4px;margin:9px 0 5px;overflow:hidden}.pb i{display:block;height:100%;background:var(--acc)}
+.tw{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:9px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:11px;text-transform:uppercase;color:var(--mut);position:sticky;top:0;background:var(--card)}th:first-child,td:first-child{text-align:left}
+tbody tr:hover{background:rgba(46,111,219,.06)}tr.cl{cursor:pointer}
+.tag{padding:3px 9px;border-radius:12px;font-size:11px;font-weight:800}.tag.good{background:var(--goodbg)}.tag.warn{background:var(--warnbg)}.tag.bad{background:var(--badbg)}
+.seg{display:inline-flex;background:var(--line);border-radius:9px;padding:2px}.seg button{border:0;background:none;padding:6px 12px;border-radius:7px;font-weight:700;font-size:12px;cursor:pointer;color:var(--mut)}.seg button.on{background:var(--acc);color:#fff}
+.cv{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px;height:340px}
+details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:var(--mut)}summary{cursor:pointer;font-weight:700;color:var(--ink)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.chips .k{padding:9px 14px}.chips .v{font-size:16px}
+</style></head><body>
+<div class="top"><div><h1>VAS Projection · Commitment · Achievement</h1><small>AM Motors — live from your Google Sheet, cumulative month-to-date</small></div>
+<div class="ctl"><span class="chip" id="tgtChip">Target</span>
+<span class="chip" id="syncStatus">Connecting…</span>
+<label style="font-size:11px;color:#9FB0D6">Tracking day <input type="date" id="dayIn"></label>
+<button class="btn g" onclick="fetchAll(true)">↻ Refresh</button>
+<a class="btn g" href="https://docs.google.com/spreadsheets/d/1dM0nil7-O10_nzvVmtq43W5oY5h3AIoZ4sfa3WymA2E/edit?usp=sharing" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block">🔗 Open Sheet</a>
+<button class="btn g" id="thm" onclick="toggleTheme()">🌙 Dark</button></div></div>
+<div class="bar">
+<label>Cluster<select id="fC"></select></label><label>Zone<select id="fZ"></select></label><label>Workshop<select id="fB"></select></label><label>Item<select id="fI"></select></label>
+<div style="margin-left:auto;font-size:12px;color:var(--mut)" id="stat"></div></div>
+<div class="tabs" id="tabs"></div>
+<main id="main"></main>
+<script>
+const D={"items":["A/C","A/C-D","EC","HF","IC","IPP","PR","SC","TF","TF-S","UB","ED","RD","CW","HWSR","HSWR-ALL"],"price":{"A/C":2125,"A/C-D":655,"EC":988,"HF":500,"IC":1195,"IPP":1388,"PR":1100,"SC":1200,"TF":3280,"TF-S":16000,"UB":2860,"ED":1017,"RD":911,"CW":614,"HWSR":614,"HSWR-ALL":1208},"names":{"TF":"Paint Protection (1+2)","UB":"Underbody Coating","IPP":"Internal Panel Protection","IC":"Interior Cleaning","TF-S":"Ceramic Coating","EC":"Evaporator Cleaning","SC":"Silencer Coating","A/C-D":"AC Vent Cleaning","A/C":"AC Vent Cleaning (minor)","PR":"Plastic Restoration","HF":"Headlight Restoration","ED":"Engine Dressing","RD":"Rodent Repellent (RR)","CW":"Ceramic Wax","HWSR":"Hard Water Removal","HSWR-ALL":"Hard Water Removal (All)"},"br":{"01-MALAPPURAM":["ZONE-2","CLUSTER-2"],"02-TIRUR-SERVICE":["ZONE-3","CLUSTER-1"],"03-PERINTHALMANNA":["ZONE-2","CLUSTER-2"],"04-PATTAMBI":["ZONE-1","CLUSTER-1"],"05-MANJERI":["ZONE-2","CLUSTER-2"],"06-FEROKE":["ZONE-3","CLUSTER-1"],"07-MANNARKAD":["ZONE-1","CLUSTER-1"],"09-CHANGARAMKULAM":["ZONE-3","CLUSTER-1"],"11-KODUVALLY":["ZONE-4","CLUSTER-2"],"12-OTTAPPALAM":["ZONE-1","CLUSTER-1"],"13-CALICUT-NEXA":["ZONE-4","CLUSTER-2"],"14-PARAPPANANGADI":["ZONE-3","CLUSTER-1"],"15-VALANCHERY":["ZONE-3","CLUSTER-1"],"16-MORAYUR":["ZONE-3","CLUSTER-1"],"17-ALATHIYOOR":["ZONE-3","CLUSTER-1"],"19-KOPPAM":["ZONE-3","CLUSTER-1"],"20-EDAVANNAPPARA":["ZONE-4","CLUSTER-2"],"21-POOLADIKUNNU":["ZONE-4","CLUSTER-2"],"22-NILAMBUR":["ZONE-2","CLUSTER-2"],"23-KUTTIYADI":["ZONE-4","CLUSTER-2"],"24-NADAPPURAM":["ZONE-4","CLUSTER-2"],"25-KODAKARA":["ZONE-2","CLUSTER-2"],"26-VIYYUR":["ZONE-2","CLUSTER-2"],"27-KUNNAMKULAM-ARENA":["ZONE-1","CLUSTER-1"],"28-KUNNAMKULAM-NEXA":["ZONE-2","CLUSTER-2"],"29-WADAKKANCHERY":["ZONE-1","CLUSTER-1"],"30-RAMANATTUKARA-NEXA":["ZONE-4","CLUSTER-2"],"27/28-KUNNAMKULAM":["Unmapped","Unmapped"]},"mix":{"01-MALAPPURAM|srv":{"A/C":0.0192,"A/C-D":0.2617,"EC":0.1093,"HF":0.0008,"IC":0.1993,"IPP":0.0159,"PR":0.0005,"SC":0.2174,"TF":0.0376,"UB":0.1383},"01-MALAPPURAM|bds":{"A/C-D":0.0098,"EC":0.0019,"HF":0.0178,"IC":0.1436,"IPP":0.4431,"SC":0.027,"TF":0.2279,"UB":0.1289},"02-TIRUR-SERVICE|srv":{"A/C":0.0364,"A/C-D":0.0699,"IC":0.1229,"IPP":0.3331,"SC":0.1623,"TF":0.025,"UB":0.2505},"02-TIRUR-SERVICE|bds":{"HF":0.021,"IC":0.1378,"IPP":0.2376,"SC":0.2348,"TF":0.149,"UB":0.2198},"03-PERINTHALMANNA|srv":{"A/C":0.0629,"A/C-D":0.0855,"EC":0.0223,"HF":0.0009,"IC":0.0749,"SC":0.3382,"TF":0.0571,"UB":0.3583},"03-PERINTHALMANNA|bds":{"A/C-D":0.0313,"IC":0.1471,"IPP":0.019,"SC":0.1477,"TF":0.3812,"UB":0.2737},"04-PATTAMBI|srv":{"A/C":0.0245,"A/C-D":0.1267,"EC":0.02,"HF":0.0014,"IC":0.0655,"SC":0.2771,"TF":0.0473,"UB":0.4375},"04-PATTAMBI|bds":{"A/C-D":0.0392,"IC":0.1192,"IPP":0.1246,"SC":0.0658,"TF":0.4088,"UB":0.2424},"05-MANJERI|srv":{"A/C-D":0.1015,"EC":0.2033,"HF":0.0089,"IC":0.1002,"SC":0.3109,"TF":0.05,"UB":0.2252},"05-MANJERI|bds":{"A/C-D":0.0775,"IC":0.1312,"SC":0.0608,"TF":0.6096,"UB":0.1208},"06-FEROKE|srv":{"A/C":0.2247,"A/C-D":0.0749,"EC":0.1722,"HF":0.0014,"IC":0.0273,"IPP":0.0436,"SC":0.1989,"TF":0.0281,"UB":0.2288},"06-FEROKE|bds":{"A/C-D":0.0193,"HF":0.0032,"IC":0.0327,"IPP":0.6284,"SC":0.0303,"TF":0.1174,"UB":0.1686},"07-MANNARKAD|srv":{"A/C":0.0143,"A/C-D":0.1192,"EC":0.1115,"HF":0.0025,"IC":0.1812,"SC":0.2082,"TF":0.0884,"UB":0.2746},"07-MANNARKAD|bds":{"A/C-D":0.0251,"HF":0.0215,"IC":0.1601,"IPP":0.0465,"SC":0.1551,"TF":0.3453,"UB":0.2464},"09-CHANGARAMKULAM|srv":{"A/C":0.0277,"A/C-D":0.0631,"EC":0.0039,"IC":0.0311,"IPP":0.0054,"SC":0.3876,"TF":0.0641,"UB":0.4172},"09-CHANGARAMKULAM|bds":{"A/C-D":0.0113,"IC":0.0343,"IPP":0.0957,"SC":0.138,"TF":0.5562,"UB":0.1644},"11-KODUVALLY|srv":{"A/C":0.027,"A/C-D":0.1103,"EC":0.0079,"HF":0.0024,"IC":0.0285,"SC":0.4691,"TF":0.073,"UB":0.2818},"11-KODUVALLY|bds":{"A/C-D":0.0019,"HF":0.0131,"IC":0.007,"IPP":0.1817,"SC":0.2199,"TF":0.3435,"UB":0.2329},"12-OTTAPPALAM|srv":{"A/C":0.0117,"A/C-D":0.0614,"HF":0.0028,"IC":0.0659,"SC":0.205,"TF":0.0542,"UB":0.599},"12-OTTAPPALAM|bds":{"A/C-D":0.1481,"HF":0.0067,"IC":0.0159,"IPP":0.1662,"SC":0.0479,"TF":0.349,"UB":0.2663},"13-CALICUT-NEXA|srv":{"A/C":0.0306,"A/C-D":0.1615,"EC":0.0009,"HF":0.0014,"IC":0.0195,"IPP":0.1252,"SC":0.3857,"TF":0.0692,"UB":0.2058},"13-CALICUT-NEXA|bds":{"A/C-D":0.0147,"HF":0.0022,"IC":0.059,"IPP":0.2368,"SC":0.1778,"TF":0.3682,"UB":0.1413},"14-PARAPPANANGADI|srv":{"A/C-D":0.2598,"EC":0.2062,"IC":0.0083,"SC":0.2839,"TF":0.0228,"UB":0.2189},"14-PARAPPANANGADI|bds":{"A/C-D":0.0185,"EC":0.004,"HF":0.0081,"IC":0.0579,"IPP":0.4992,"SC":0.0533,"TF":0.1856,"UB":0.1734},"15-VALANCHERY|srv":{"A/C":0.0564,"A/C-D":0.2704,"EC":0.0883,"HF":0.064,"IC":0.1154,"IPP":0.0704,"SC":0.0608,"TF":0.0396,"UB":0.2348},"15-VALANCHERY|bds":{"HF":0.0794,"IC":0.0848,"IPP":0.5739,"SC":0.0652,"TF":0.137,"UB":0.0597},"16-MORAYUR|srv":{"A/C":0.0088,"A/C-D":0.0366,"EC":0.5179,"HF":0.001,"IC":0.0173,"IPP":0.0173,"SC":0.2088,"TF":0.0204,"UB":0.1718},"16-MORAYUR|bds":{"A/C-D":0.0166,"EC":0.005,"IC":0.0906,"IPP":0.2245,"SC":0.1092,"TF":0.2652,"UB":0.2891},"17-ALATHIYOOR|srv":{"A/C":0.0371,"A/C-D":0.082,"EC":0.0288,"HF":0.0277,"IC":0.0035,"IPP":0.101,"SC":0.4296,"TF":0.0573,"UB":0.2331},"17-ALATHIYOOR|bds":{"A/C-D":0.0259,"HF":0.004,"IC":0.0661,"IPP":0.3182,"SC":0.1423,"TF":0.2852,"UB":0.1583},"19-KOPPAM|srv":{"A/C-D":0.0285,"IC":0.0142,"SC":0.5087,"TF":0.052,"UB":0.3966},"19-KOPPAM|bds":{"A/C-D":0.013,"IC":0.4264,"IPP":0.2201,"SC":0.0238,"TF":0.2601,"UB":0.0567},"20-EDAVANNAPPARA|srv":{"A/C-D":0.0602,"IC":0.0253,"IPP":0.0098,"SC":0.6189,"TF":0.0232,"UB":0.2627},"20-EDAVANNAPPARA|bds":{"A/C-D":0.0434,"EC":0.0164,"HF":0.0083,"IC":0.2967,"IPP":0.4595,"SC":0.0199,"TF":0.1086,"UB":0.0473},"21-POOLADIKUNNU|srv":{"A/C":0.0081,"A/C-D":0.1549,"IC":0.0091,"SC":0.5629,"TF":0.025,"UB":0.24},"21-POOLADIKUNNU|bds":{"A/C-D":0.0069,"IC":0.0506,"IPP":0.1471,"SC":0.1399,"TF":0.1043,"TF-S":0.3391,"UB":0.2121},"22-NILAMBUR|srv":{"A/C":0.0285,"A/C-D":0.0211,"EC":0.0239,"IC":0.0096,"IPP":0.0559,"SC":0.4927,"UB":0.3684},"22-NILAMBUR|bds":{"IC":0.0284,"IPP":0.1649,"SC":0.3991,"UB":0.4076},"23-KUTTIYADI|srv":{"A/C-D":0.2037,"HF":0.0082,"IC":0.0196,"SC":0.3733,"TF":0.1611,"UB":0.2341},"23-KUTTIYADI|bds":{"IPP":0.0482,"SC":0.0208,"TF":0.6829,"UB":0.2481},"24-NADAPPURAM|srv":{"A/C":0.097,"A/C-D":0.1674,"EC":0.003,"IC":0.0109,"IPP":0.0042,"PR":0.0033,"SC":0.2812,"TF":0.01,"TF-S":0.0487,"UB":0.3742},"24-NADAPPURAM|bds":{"A/C":0.0174,"A/C-D":0.0054,"IC":0.0196,"IPP":0.1936,"PR":0.009,"SC":0.0295,"TF":0.1345,"TF-S":0.2625,"UB":0.3284},"25-KODAKARA|srv":{"A/C-D":0.0793,"HF":0.0216,"IC":0.1189,"IPP":0.042,"SC":0.3219,"TF":0.2554,"UB":0.1608},"25-KODAKARA|bds":{"IC":0.0338,"IPP":0.0196,"SC":0.3051,"TF":0.278,"UB":0.3636},"26-VIYYUR|srv":{"A/C-D":1.0},"26-VIYYUR|bds":{"A/C-D":1.0},"27-KUNNAMKULAM-ARENA|srv":{"A/C-D":0.0188,"IPP":0.0199,"SC":0.5857,"TF":0.0471,"UB":0.3285},"27-KUNNAMKULAM-ARENA|bds":{"IC":0.0451,"SC":0.1359,"TF":0.4952,"UB":0.3238},"28-KUNNAMKULAM-NEXA|srv":{"SC":0.2956,"UB":0.7044},"*|srv":{"A/C":0.0322,"A/C-D":0.141,"EC":0.0748,"HF":0.0048,"IC":0.0862,"IPP":0.0416,"PR":0.0002,"SC":0.3047,"TF":0.0511,"TF-S":0.0014,"UB":0.262},"*|bds":{"A/C":0.0005,"A/C-D":0.0177,"EC":0.0009,"HF":0.0111,"IC":0.0841,"IPP":0.2832,"PR":0.0002,"SC":0.1147,"TF":0.277,"TF-S":0.0145,"UB":0.1961}},"adv":[["AM12891","Mohamed Afreedi T K","17-ALATHIYOOR","srv",64935,6510],["AM11063","Arjun PV","17-ALATHIYOOR","bds",32468,12891],["AM11970","Mohammed Raziq P","17-ALATHIYOOR","bds",32468,23770],["AM10276","Sarath K M","17-ALATHIYOOR","srv",43290,52743],["AM03744","Rasik P P","17-ALATHIYOOR","srv",64935,59699],["AM12478","Muhammed Rinas","09-CHANGARAMKULAM","srv",108225,24741],["AM14376","Riyas Rafique","09-CHANGARAMKULAM","bds",32468,43022],["AM12160","Arjun N","09-CHANGARAMKULAM","srv",108225,45599],["AM00672","Madhusudhanan S","09-CHANGARAMKULAM","srv",108225,58618],["AM13985","Sajeesh.KP","09-CHANGARAMKULAM","bds",32468,62385],["AM10121","Vishnu Narayanan TK","09-CHANGARAMKULAM","srv",108225,102633],["AM05778","Sharafudheen","09-CHANGARAMKULAM","bds",32468,0],["NX00519","Muhammed Shafeeq T C","20-EDAVANNAPPARA","bds",32468,22781],["AM11900","Muhammed Ziyad C K","20-EDAVANNAPPARA","srv",43290,32203],["AM14755","Jobin K Joshy","20-EDAVANNAPPARA","srv",108225,0],["AM14770","Muzammil V T","20-EDAVANNAPPARA","srv",108225,0],["AM14522","Mohammed Nihad V","06-FEROKE","srv",43290,3326],["AM14457","Aswinraj N","06-FEROKE","bds",32468,32634],["AM11596","Akash Babu M M","06-FEROKE","srv",64935,48035],["NX00722","Emil Raj Eldho","06-FEROKE","bds",32468,49093],["AM00561","Vimal Das P M","06-FEROKE","bds",32468,49929],["AM11926","Ranjith M P","06-FEROKE","srv",43290,0],[null,"Vishnu Raveendran","06-FEROKE","srv",108225,0],["AM14862","Sahal Jaleel P P","06-FEROKE","srv",108225,0],["AM12489","Santo Varghese","25-KODAKARA","bds",43290,25776],["AM12517","Mridhul Mohan","25-KODAKARA","srv",64935,37200],["AM13535","Darvin Davis","25-KODAKARA","srv",64935,41212],["AM13107","Ajay Krishna K M","11-KODUVALLY","srv",64935,31168],["AM11262","Karamchand P S","11-KODUVALLY","bds",32468,33764],["NX00716","Sudheesh C","11-KODUVALLY","srv",108225,35025],["AM12102","Junais Km","11-KODUVALLY","bds",32468,36480],["AM12322","Ajmal Niyas T M","11-KODUVALLY","bds",64935,38039],["AM11555","Muhammed Nayif O K","11-KODUVALLY","srv",108225,50436],["AM07002","Shamil Khan.EK","11-KODUVALLY","srv",108225,65258],["AM08395","Nithin VT","19-KOPPAM","bds",32468,14892],["AM13800","Abhijith C P","19-KOPPAM","srv",108225,43702],["AM04278","Muhammed Harshad K P","19-KOPPAM","srv",108225,43914],["NX14225","Monish K V","27/28-KUNNAMKULAM","bds",32468,0],["NX14456","Muhammed Asim K E","27/28-KUNNAMKULAM","srv",43290,4745],["AM13914","Vishnu Prasad P","27/28-KUNNAMKULAM","srv",108225,12592],["AM14201","Manikandan MN","27/28-KUNNAMKULAM","srv",108225,22953],["AM13804","Stenil K S","27/28-KUNNAMKULAM","bds",43290,28006],["AM11153","Arun R","23-KUTTIYADI","srv",108225,9811],["AM11244","Yadu Krishna","23-KUTTIYADI","bds",32468,26396],["AM11601","Anood V Raj","23-KUTTIYADI","srv",108225,30092],["AM14469","Pandya raja R","01-MALAPPURAM","bds",32468,3220],["AM03320","Fasil V P","01-MALAPPURAM","srv",43290,5805],["AM11162","Ajeesh V","01-MALAPPURAM","bds",32468,7221],["AM08484","Sumith . P E","01-MALAPPURAM","srv",108225,14106],["AM13311","Muhammed Badusha","01-MALAPPURAM","bds",64935,16588],["AM12070","Muhammed Farshid","01-MALAPPURAM","bds",64935,20897],["AM11103","Vivek K","01-MALAPPURAM","bds",64935,24796],["AM09850","Shamil O P","01-MALAPPURAM","bds",64935,28501],["AM10200","Faris. AK","01-MALAPPURAM","srv",43290,34761],["AM11659","Affanul Faisal P","01-MALAPPURAM","srv",108225,38142],["AM10519","Shibin A","01-MALAPPURAM","srv",108225,40854],["AM08479","Jaseem.O P","01-MALAPPURAM","bds",64935,45699],["AM10464","Basil M","01-MALAPPURAM","srv",43290,46128],["AM10771","Mohammed Aymen","01-MALAPPURAM","srv",108225,48129],["AM11692","Mohamed Anas","01-MALAPPURAM","srv",108225,48592],["AM00563","Shamsudheen T","01-MALAPPURAM","srv",64935,54174],["AM14034","Abdul Nasar K","01-MALAPPURAM","srv",108225,55058],["AM00496","Noufal Koradan","01-MALAPPURAM","srv",64935,76683],["AM00555","Naseer K","01-MALAPPURAM","srv",108225,122526],["AM08176","Nidhin.CT","01-MALAPPURAM","srv",108225,254675],["AM12040","Muhammed Shamil","05-MANJERI","srv",64935,12375],["AM13835","Jishnu MT","05-MANJERI","srv",64935,14191],["AM10616","Jithin K","05-MANJERI","bds",43290,26121],["AM14399","Anshid T","05-MANJERI","bds",64935,35262],["AM13073","Mohammad Nishan N K","05-MANJERI","srv",108225,41542],["AM00196","Mohammed Noufal K","05-MANJERI","srv",108225,44150],["AM12697","Muhammed Anees A","07-MANNARKAD","srv",43290,18640],["AM12525","Abhinraj K V","07-MANNARKAD","srv",64935,27508],["AM12701","Ajith Kumar R","07-MANNARKAD","bds",64935,28757],["AM08626","Syam Das .A S","07-MANNARKAD","srv",64935,37259],["AM13495","Sooraj C R","07-MANNARKAD","bds",64935,48602],["AM00746","Sajesh V","07-MANNARKAD","srv",64935,64369],["AM00730","Sarath P","07-MANNARKAD","srv",43290,66875],["AM09949","Kailas Nath M S","16-MORAYUR","bds",32468,26184],["AM09565","Mohammed Rashi T","16-MORAYUR","bds",32468,36201],["AM10564","Adil Mubarak","16-MORAYUR","srv",108225,52917],["AM10006","Jishnu P C","16-MORAYUR","srv",108225,53284],["AM10403","Muhammed Adil K P","16-MORAYUR","srv",108225,54489],["AM13135","Sreejesh T P","24-NADAPPURAM","srv",64935,17356],["AM11826","Arjun O P","24-NADAPPURAM","srv",43290,23430],["AM11672","Anand Krishna S G","24-NADAPPURAM","srv",64935,36741],["AM01644","Nidhin P K","24-NADAPPURAM","srv",43290,41676],["AM11890","Jishnu Kumar K M","24-NADAPPURAM","bds",64935,42610],["NX13965","Shibinjith T K","13-CALICUT-NEXA","bds",32468,4236],["NX13905","Arshak V K","13-CALICUT-NEXA","bds",32468,20970],["NX00924","Ameg Das","13-CALICUT-NEXA","srv",108225,22456],["NX00730","Vysakh V T","13-CALICUT-NEXA","bds",32468,24222],["NX01023","Akshay P T","13-CALICUT-NEXA","bds",32468,26001],["NX00670","Anirudh K P Shinju","13-CALICUT-NEXA","srv",108225,28228],["AM11771","Akshay M K","13-CALICUT-NEXA","srv",43290,31215],["AM10562","Rojin M","13-CALICUT-NEXA","srv",108225,40634],["AM01035","Mohammed Fasil P","13-CALICUT-NEXA","srv",108225,40935],["NX01038","Sarath C","13-CALICUT-NEXA","srv",43290,43329],["NX00885","Athul K","13-CALICUT-NEXA","srv",108225,48754],["NX01004","Vybhav M","13-CALICUT-NEXA","srv",43290,96691],["AM12306","Akhin Das T","22-NILAMBUR","bds",64935,41049],["AM08943","Jiji Chacko","22-NILAMBUR","srv",108225,51595],["AM10655","Jinu Abraham","22-NILAMBUR","srv",108225,68415],["AM14085","Leon Varghese A","12-OTTAPPALAM","srv",43290,0],["AM13343","Krishna Prasad G","12-OTTAPPALAM","bds",32468,7796],["AM11952","Ajay Krishnan Cp","12-OTTAPPALAM","bds",64935,15646],["AM00120","Pradeep K","12-OTTAPPALAM","srv",64935,16812],["AM10815","Ullas K","12-OTTAPPALAM","srv",43290,20497],["AM10214","Ranjith. V","12-OTTAPPALAM","srv",64935,23280],["AM13635","Febi Serene V K","14-PARAPPANANGADI","srv",43290,10536],["AM14149","Muhammed Ziyad N","14-PARAPPANANGADI","bds",32468,22165],["AM10818","Aswin Das K","14-PARAPPANANGADI","srv",43290,25347],["AM14585","Mohammed Nowfal K","14-PARAPPANANGADI","srv",108225,0],[null,"Shaheen","14-PARAPPANANGADI","bds",32468,0],["AM11668","Muhammed Irfan K","14-PARAPPANANGADI","srv",43290,0],["AM10136","Muhammed Salman KT","04-PATTAMBI","bds",43290,24883],["AM02378","Santhosh C","04-PATTAMBI","bds",32468,38937],["AM12360","Syam Lal M","04-PATTAMBI","srv",108225,46372],["AM00480","Muhammed Shafeek K","04-PATTAMBI","srv",108225,48029],["AM12425","Sachin K","04-PATTAMBI","srv",108225,55482],["AM00302","Rasheed K","04-PATTAMBI","srv",108225,86168],["AM13820","Afsal Babu","03-PERINTHALMANNA","srv",108225,11780],["AM12110","Thajin Krishna M","03-PERINTHALMANNA","bds",43290,25193],["AM11628","Mubarish N","03-PERINTHALMANNA","bds",43290,26171],["AM10183","Muhammed Mufeed C","03-PERINTHALMANNA","srv",108225,59078],["AM00497","Sakker Hussain C","03-PERINTHALMANNA","srv",108225,62588],["AM00393","Suresh P","03-PERINTHALMANNA","srv",108225,63307],["AM14398","Mohammed Shameel K V","03-PERINTHALMANNA","bds",32468,0],["AM14531","Muhammad Riyas N K","21-POOLADIKUNNU","srv",43290,18896],["NX00829","Amal P K","21-POOLADIKUNNU","bds",43290,30009],["NX00828","Sujil PV","21-POOLADIKUNNU","srv",108225,61163],["AM12729","Aswin Chandran EM","21-POOLADIKUNNU","srv",43290,0],["AM10660","Mohammed Shafi.KM","02-TIRUR-SERVICE","bds",32468,22763],["AM01534","Mansoor Ahammed","02-TIRUR-SERVICE","bds",32468,27565],["AM11048","Sameeh Mohammed","02-TIRUR-SERVICE","bds",32468,29020],["AM11667","Muhammed Shaheed E V","02-TIRUR-SERVICE","srv",64935,22765],["AM01640","Mohammed Sakaria V T","02-TIRUR-SERVICE","srv",108225,28372],["AM00178","Muhammed Sadiq K","02-TIRUR-SERVICE","srv",64935,54624],["AM13954","Muhammed Afsal K T","15-VALANCHERY","bds",32468,50565],["AM09692","Muhammed Nimshad A","15-VALANCHERY","srv",108225,62895],["AM01674","Mohammed Ajmal P","15-VALANCHERY","srv",43290,63923],["AM11776","Shijin T S","26-VIYYUR","srv",43290,0],["AM11972","Midhun Manoharan","26-VIYYUR","bds",64935,0],["AM12545","Aljo Joy","26-VIYYUR","srv",64935,593],["AM13593","Bibeesh Raj K R","26-VIYYUR","bds",32468,946],["AM12935","Jithin K J","29-WADAKKANCHERY","srv",108225,0],["AM13806","Sudheesh T S","29-WADAKKANCHERY","bds",64935,0]]};
+const ITEMS=D.items,P=D.price,NM=D.names,BR=D.br,dsp=c=>c=='RD'?'RR':c;
+const $=id=>document.getElementById(id);
+let U='amt',tab='today',level='workshop',charts=[];
+const F={c:'',z:'',b:'',i:''};let DAY='';
+/* ---------- advisors (target / market potential — from the plan, unchanged) ---------- */
+const ADV=D.adv.map((a,ix)=>{const [id,name,br,dept,tgt,last]=a;const w=D.mix[br+'|'+dept]||D.mix['*|'+dept];const o={ix,id,name,br,dept,tgt,last,z:BR[br][0],c:BR[br][1],tA:{},lA:{},tq:0,lq:0};
+ITEMS.forEach(i=>{const x=w[i]||0;o.tA[i]=tgt*x;o.lA[i]=last*x;o.tq+=o.tA[i]/P[i];o.lq+=o.lA[i]/P[i]});return o});
+const TOTAL_TARGET=ADV.reduce((s,a)=>s+a.tgt,0);
+const norm=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''),nb=s=>String(s||'').toUpperCase().replace(/[^A-Z]/g,'');
+const byId={},byName={};ADV.forEach(a=>{byId[norm(a.id)]=a;byName[nb(a.name)]=a});
+/* ---------- format ---------- */
+const rs=n=>{const s=n<0?'-':'',a=Math.abs(n||0);return s+'₹'+(a>=1e7?(a/1e7).toFixed(2)+' Cr':a>=1e5?(a/1e5).toFixed(2)+' L':Math.round(a).toLocaleString('en-IN'))};
+const q=n=>Math.round(n||0).toLocaleString('en-IN');
+const fv=n=>U=='qty'?q(n):rs(n);
+const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const pd=s=>{const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)};
+const isWd=s=>pd(s).getDay()!=0;
+const addDays=(iso,n)=>{const d=pd(iso);d.setDate(d.getDate()+n);return ymd(d)};
+const esc=s=>String(s==null?'':s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+function toDate(v){if(v instanceof Date)return ymd(new Date(v.getTime()+43200000));if(typeof v=='number'){return ymd(new Date(Math.round((v-25569)*864e5)+43200000))}
+const s=String(v).trim();let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m)return`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);if(m){let y=+m[3];if(y<100)y+=2000;return`${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`}return null}
+
+/* ==================================================================
+   LIVE GOOGLE SHEET CONNECTION
+   Reads 3 tabs — "VAS Revenue", "SRV Item", "BDS Item" — from the
+   user's published sheet. Each row is treated as a CUMULATIVE
+   month-to-date snapshot AS OF its Date column (matches how the user
+   described the sheet: "shows till 21 Sep"), not a single day's
+   isolated transactions. "Achieved through day X" = the latest
+   snapshot on or before X, per branch+department. No advisor-level
+   figures exist in the feed, so advisor rows are estimated by
+   splitting each branch+department's real total across its advisors
+   in proportion to their monthly target share.
+   ================================================================== */
+const SHEET_ID='1dM0nil7-O10_nzvVmtq43W5oY5h3AIoZ4sfa3WymA2E';
+const TAB_REVENUE='VAS Revenue', TAB_SRV='SRV Item', TAB_BDS='BDS Item';
+const CACHE_KEY='vas1cr_sheet_cache_v1';
+let BRX={};                 // branch -> [zone,cluster], BR extended with any branch the sheet reports that isn't in the plan
+let REV={};                 // "branch|dept" -> [{date,value,load}, ...] ascending
+let ITEMQ={};                // "branch|dept|item" -> [{date,qty}, ...] ascending
+let LAST_SYNC=null, SYNC_ERR=null, SYNC_WARN=[], FETCHING=false;
+
+function gvizUrl(name){
+  if(window.__GVIZ_OVERRIDE__ && window.__GVIZ_OVERRIDE__[name]) return window.__GVIZ_OVERRIDE__[name];
+  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}&_ts=${Date.now()}`;
+}
+function num(v){const n=parseFloat(String(v==null?'':v).replace(/,/g,'').trim());return isNaN(n)?0:n}
+function csvRows(text){const wb=XLSX.read(text,{type:'string'});return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''})}
+function findCol(H,re){return H.findIndex(h=>re.test(String(h||'').trim()))}
+async function fetchTab(name){
+  const res=await fetch(gvizUrl(name),{cache:'no-store'});
+  if(!res.ok) throw new Error(name+': HTTP '+res.status);
+  const text=await res.text();
+  if(/^\s*</.test(text)) throw new Error(name+': the sheet did not return CSV — check it is shared as "Anyone with the link can view"');
+  return csvRows(text);
+}
+function mergeBranch(name, liveZone){
+  if(!name) return;
+  if(!BRX[name]) BRX[name]=BR[name]?BR[name].slice():[liveZone||'Unmapped','Unmapped'];
+  else if(!BR[name] && liveZone && BRX[name][0]==='Unmapped') BRX[name][0]=liveZone;
+}
+function pushSorted(map,key,rec){(map[key]=map[key]||[]).push(rec)}
+function finalizeSorted(map){Object.values(map).forEach(arr=>arr.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0))}
+function latestBefore(arr,day){if(!arr)return null;let best=null;for(const s of arr){if(s.date<day)best=s;else break}return best}
+function latestAtOrBefore(arr,day){if(!arr)return null;let best=null;for(const s of arr){if(s.date<=day)best=s;else break}return best}
+
+function parseRevenue(rows){
+  if(!rows||!rows.length) return;
+  const H=rows[0];
+  const iDate=findCol(H,/^date/i);
+  const iBdsLoad=findCol(H,/bodyshop load/i), iBdsVas=iBdsLoad>=0?iBdsLoad+1:-1;
+  const iSrvLoad=findCol(H,/service load/i), iSrvVas=iSrvLoad>=0?iSrvLoad+1:-1;
+  if(iDate<0){SYNC_WARN.push(TAB_REVENUE+': no "Date" column found');return}
+  let curZone='';
+  for(let r=1;r<rows.length;r++){
+    const row=rows[r]; if(!row||!row.length) continue;
+    const zc=String(row[0]||'').trim(), bc=String(row[1]||'').trim();
+    if(zc && zc!=='Total') curZone=zc;
+    if(!bc || bc==='Total') continue;
+    const date=toDate(row[iDate]); if(!date) continue;
+    mergeBranch(bc,curZone);
+    if(iBdsVas>=0) pushSorted(REV, bc+'|bds', {date, value:num(row[iBdsVas]), load:num(row[iBdsLoad])});
+    if(iSrvVas>=0) pushSorted(REV, bc+'|srv', {date, value:num(row[iSrvVas]), load:num(row[iSrvLoad])});
+  }
+}
+function parseItemSheet(rows, dept, label){
+  if(!rows||!rows.length) return;
+  const H=rows[0];
+  const iDate=findCol(H,/^date/i);
+  if(iDate<0){SYNC_WARN.push(label+': no "Date" column found');return}
+  const items=[];
+  for(let i=2;i<iDate;i++){
+    const h=String(H[i]||'').trim(); if(!h) continue;
+    if(/^total\b/i.test(h)) continue;
+    let code=h.split(' Count')[0].trim();
+    if(code==='RR') code='RD';
+    if(!P[code]){ if(!SYNC_WARN.includes('unk:'+code)){SYNC_WARN.push('unk:'+code); SYNC_WARN.push(label+': unrecognized item code "'+code+'" — ignored');} continue; }
+    items.push({code, idx:i});
+  }
+  let curZone='';
+  for(let r=1;r<rows.length;r++){
+    const row=rows[r]; if(!row||!row.length) continue;
+    const zc=String(row[0]||'').trim(), bc=String(row[1]||'').trim();
+    if(zc && zc!=='Total') curZone=zc;
+    if(!bc || bc==='Total') continue;
+    const date=toDate(row[iDate]); if(!date) continue;
+    mergeBranch(bc,curZone);
+    items.forEach(({code,idx})=>{ pushSorted(ITEMQ, bc+'|'+dept+'|'+code, {date, qty:num(row[idx])}); });
+  }
+}
+function setSync(text,kind){
+  const el=$('syncStatus'); el.textContent=text;
+  el.style.background = kind=='ok'?'rgba(15,157,116,.32)' : kind=='bad'?'rgba(192,57,43,.4)' : 'rgba(255,255,255,.12)';
+}
+function saveCache(){try{localStorage.setItem(CACHE_KEY, JSON.stringify({REV,ITEMQ,BRX,ts:LAST_SYNC?LAST_SYNC.toISOString():null}))}catch(e){}}
+function loadCache(){try{const raw=localStorage.getItem(CACHE_KEY);if(!raw)return false;const p=JSON.parse(raw);REV=p.REV||{};ITEMQ=p.ITEMQ||{};BRX=Object.assign({},BR,p.BRX||{});LAST_SYNC=p.ts?new Date(p.ts):null;return true}catch(e){return false}}
+
+async function fetchAll(manual){
+  if(FETCHING) return; FETCHING=true;
+  setSync('Syncing…','busy');
+  const warn=[];
+  try{
+    const [rev,srv,bds]=await Promise.all([fetchTab(TAB_REVENUE), fetchTab(TAB_SRV), fetchTab(TAB_BDS)]);
+    const newREV={}, newITEMQ={}, newBRX={}; Object.keys(BR).forEach(b=>newBRX[b]=BR[b].slice());
+    REV=newREV; ITEMQ=newITEMQ; BRX=newBRX; SYNC_WARN=[];
+    parseRevenue(rev);
+    parseItemSheet(srv,'srv',TAB_SRV);
+    parseItemSheet(bds,'bds',TAB_BDS);
+    finalizeSorted(REV); finalizeSorted(ITEMQ);
+    LAST_SYNC=new Date(); SYNC_ERR=null;
+    saveCache();
+    setDayFromData();
+    setSync('● Live — synced '+LAST_SYNC.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),'ok');
+  }catch(err){
+    SYNC_ERR=String(err&&err.message||err);
+    const had=loadCache();
+    setSync(had?'⚠ Could not reach the sheet — showing last saved data':'⚠ Could not reach the sheet','bad');
+    if(had) setDayFromData();
+  }
+  FETCHING=false;
+  render();
+}
+
+/* ---------- date of latest data / tracking-day default ---------- */
+function lastDataDate(){let m='';Object.values(REV).forEach(arr=>arr.forEach(s=>{if(s.date>m)m=s.date}));Object.values(ITEMQ).forEach(arr=>arr.forEach(s=>{if(s.date>m)m=s.date}));return m}
+function setDayFromData(){let ld=lastDataDate();let d=ld?pd(ld):new Date();if(ld)d.setDate(d.getDate()+1);while(d.getDay()==0)d.setDate(d.getDate()+1);DAY=ymd(d);$('dayIn').value=DAY}
+
+/* ---------- filters ---------- */
+const inF=(c,z,b)=>(!F.c||c==F.c)&&(!F.z||z==F.z)&&(!F.b||b==F.b);
+function fillSel(){const brs=Object.keys(BRX).sort();const opt=(id,arr,all,cur)=>{$(id).innerHTML=`<option value="">${all}</option>`+arr.map(x=>`<option value="${esc(x)}" ${x==cur?'selected':''}>${esc(x)}</option>`).join('')};
+opt('fC',[...new Set(brs.map(b=>BRX[b][1]))].sort(),'All clusters',F.c);
+opt('fZ',[...new Set(brs.filter(b=>!F.c||BRX[b][1]==F.c).map(b=>BRX[b][0]))].sort(),'All zones',F.z);
+opt('fB',brs.filter(b=>(!F.z||BRX[b][0]==F.z)&&(!F.c||BRX[b][1]==F.c)),'All workshops',F.b);
+$('fI').innerHTML='<option value="">All items</option>'+ITEMS.map(i=>`<option value="${i}" ${i==F.i?'selected':''}>${dsp(i)} — ${esc(NM[i])}</option>`).join('')}
+['C','Z','B','I'].forEach(k=>$('f'+k).onchange=e=>{const m={C:'c',Z:'z',B:'b',I:'i'}[k];F[m]=e.target.value;if(k=='C'){F.z='';F.b=''}if(k=='Z')F.b='';render()});
+$('dayIn').onchange=e=>{if(e.target.value){DAY=e.target.value;render()}};
+
+/* ---------- calc ---------- */
+function timeCtx(){const d0=pd(DAY),y=d0.getFullYear(),m=d0.getMonth(),n=new Date(y,m+1,0).getDate(),wd=[];
+for(let i=1;i<=n;i++){const s=ymd(new Date(y,m,i));if(isWd(s))wd.push(s)}
+const past=wd.filter(x=>x<DAY).length,tot=wd.length,today=isWd(DAY)?1:0,ym=DAY.slice(0,7);
+return{wd,past,tot,rem:tot-past,fP:past/tot,fT:(past+today)/tot,ym,y,m,n}}
+
+// achieved value (and qty/load) for one branch+dept, as of the latest snapshot strictly before `cutoff`.
+// item: pass an item code to read from the item-quantity feed instead of the revenue feed.
+function achievedBranchDept(branch,dept,cutoff,item){
+  if(item){
+    const snap=latestBefore(ITEMQ[branch+'|'+dept+'|'+item],cutoff);
+    const qty=snap?snap.qty:0;
+    return {value:qty*(P[item]||0), qty, load:0};
+  }
+  const snap=latestBefore(REV[branch+'|'+dept],cutoff);
+  return {value:snap?snap.value:0, qty:0, load:snap?snap.load:0};
+}
+
+function compute(g,sel){
+  const T=timeCtx(),M={};
+  const get=(k,l)=>M[k]||(M[k]={k,l:l||k,TA:0,TQ:0,LA:0,LQ:0,AA:0,AQ:0});
+  // targets / market potential / last-month — from the plan (ADV), unchanged
+  ADV.forEach(a=>{if(!inF(a.c,a.z,a.br))return;
+    if(g=='item'){ITEMS.forEach(i=>{const e=get(i,dsp(i)+' — '+NM[i]);e.TA+=a.tA[i];e.TQ+=a.tA[i]/P[i];e.LA+=a.lA[i];e.LQ+=a.lA[i]/P[i]})}
+    else{const k=gk(g,a.ix,a.br),e=get(k,gl(g,a.ix,a.br));if(sel){e.TA+=a.tA[sel];e.TQ+=a.tA[sel]/P[sel];e.LA+=a.lA[sel];e.LQ+=a.lA[sel]/P[sel]}else{e.TA+=a.tgt;e.TQ+=a.tq;e.LA+=a.last;e.LQ+=a.lq}}
+  });
+  // achieved — from the live Google Sheet, cumulative snapshots
+  const branches=Object.keys(BRX).filter(b=>inF(BRX[b][1],BRX[b][0],b));
+  branches.forEach(b=>{
+    ['srv','bds'].forEach(dept=>{
+      if(g=='item'){
+        ITEMS.forEach(i=>{
+          const r=achievedBranchDept(b,dept,DAY,i); if(!r.value&&!r.qty) return;
+          const e=get(i,dsp(i)+' — '+NM[i]); e.AA+=r.value; e.AQ+=r.qty;
+        });
+        return;
+      }
+      const r=achievedBranchDept(b,dept,DAY,sel||null); if(!r.value&&!r.qty) return;
+      if(g=='advisor'){
+        const advs=ADV.filter(a=>a.br===b && a.dept===dept && inF(a.c,a.z,a.br));
+        if(!advs.length){ const e=get('U|'+b+'|'+dept,'Unassigned · '+b); e.AA+=r.value; e.AQ+=r.qty; return; }
+        const totW=advs.reduce((s,a)=>s+(sel?(a.tA[sel]||0):a.tgt),0);
+        advs.forEach(a=>{
+          const w=totW?(sel?(a.tA[sel]||0):a.tgt)/totW:(1/advs.length);
+          const k=gk(g,a.ix,a.br),e=get(k,gl(g,a.ix,a.br));
+          e.AA+=r.value*w; e.AQ+=r.qty*w;
+        });
+      } else {
+        const k=gk(g,-1,b),e=get(k,gl(g,-1,b));
+        e.AA+=r.value; e.AQ+=r.qty;
+      }
+    });
+  });
+  const L=Object.values(M);
+  L.forEach(e=>{const p=U=='qty'&&(g=='item'||sel||true)?'Q':'A';e.T=e['T'+p];e.L=e['L'+p];e.A=e['A'+p];e.TP=e.T*T.fP;e.TT=e.T*T.fT;e.gap=e.TP-e.A;e.ask=Math.max(0,e.TT-e.A);e.need=T.rem>0?Math.max(0,(e.T-e.A)/T.rem):Math.max(0,e.T-e.A);e.pct=e.TP?e.A/e.TP*100:null;e.dayPlan=T.tot?e.T/T.tot:0});
+  return {L,T};
+}
+
+// live-load-based current-performance strip (real cars-serviced count, not item-unit count)
+function perfOf(){
+  const cutoff=DAY;
+  let value=0, load=0;
+  Object.keys(BRX).forEach(b=>{ if(!inF(BRX[b][1],BRX[b][0],b)) return;
+    ['srv','bds'].forEach(dept=>{ const snap=latestBefore(REV[b+'|'+dept],cutoff); if(snap){ value+=snap.value; load+=snap.load; } });
+  });
+  const {L}=compute('cluster',''); let LA=0; L.forEach(e=>LA+=e.LA);
+  const advN=ADV.filter(a=>inF(a.c,a.z,a.br)).length||1;
+  const T=timeCtx();
+  return {AA:value, AQ:load, LA, advN, avgDay:T.past?value/T.past:0, avgAdvDay:T.past?value/(T.past*advN):0, avgCar:load?value/load:0};
+}
+function perfStrip(){const p=perfOf();
+return`<h2>Current performance <span style="font-weight:400;color:var(--mut)">— this month so far, current filters</span></h2><div class="chips">
+<div class="k"><div class="l">Avg / Working Day</div><div class="v">${rs(p.avgDay)}</div></div>
+<div class="k"><div class="l">Avg / Advisor / Day</div><div class="v">${rs(p.avgAdvDay)}</div><div class="s">${p.advN} advisor(s) in scope</div></div>
+<div class="k"><div class="l">Avg / Car (ticket size)</div><div class="v">${p.AQ?rs(p.avgCar):'—'}</div><div class="s">${q(p.AQ)} car(s) serviced</div></div>
+<div class="k"><div class="l">Last Month, Same Scope</div><div class="v">${rs(p.LA)}</div></div></div>`}
+
+function gk(g,ai,b){if(g=='cluster')return (BRX[b]||['Unmapped','Unmapped'])[1];if(g=='zone')return (BRX[b]||['Unmapped','Unmapped'])[0];if(g=='workshop')return b;return ai>=0?ADV[ai].id:'U|'+b}
+function gl(g,ai,b){if(g=='advisor')return ai>=0?ADV[ai].name+' · '+b.slice(3,12):'Unassigned · '+b;return gk(g,ai,b)}
+const st=p=>p==null?['—','']:p>=100?['On track','good']:p>=85?['Watch','warn']:['Behind','bad'];
+const stCls=p=>p==null?'':p>=100?'good':p>=85?'warn':'bad';
+
+/* ---------- views ---------- */
+const TABS=[['today','Today\'s Ask'],['till','Till Date'],['break','Breakdown'],['trend','Trend']];
+function head(T,tot){const A=tot.AA,TP=tot.TA*T.fP,TT=tot.TA*T.fT,gap=TP-A,need=T.rem>0?Math.max(0,(tot.TA-A)/T.rem):Math.max(0,tot.TA-A),run=T.past?A/T.past*T.tot:0,dayPlan=T.tot?tot.TA/T.tot:0;
+return`<div class="kpis"><div class="k"><div class="l">Month target</div><div class="v">${rs(tot.TA)}</div><div class="s">${T.tot} working days · ${rs(dayPlan)}/day</div></div>
+<div class="k"><div class="l">Achieved till yesterday</div><div class="v">${rs(A)}</div><div class="s">${tot.TA?(A/tot.TA*100).toFixed(1)+'% of month':'—'}</div></div>
+<div class="k"><div class="l">Target till yesterday</div><div class="v">${rs(TP)}</div><div class="s ${gap>0?'bad':'good'}">${gap>0?'Behind by '+rs(gap):'Ahead by '+rs(-gap)}</div></div>
+<div class="k"><div class="l">Today's ask</div><div class="v">${rs(Math.max(0,TT-A))}</div><div class="s">plan ${rs(dayPlan)} + carried gap</div></div>
+<div class="k"><div class="l">Revised need / day</div><div class="v ${need>dayPlan*1.05?'bad':'good'}">${rs(need)}</div><div class="s">${T.rem} working days left</div></div>
+<div class="k"><div class="l">Month-end at current pace</div><div class="v ${run>=tot.TA?'good':'bad'}">${T.past?rs(run):'—'}</div><div class="s">${T.past?(run/tot.TA*100).toFixed(0)+'% of target':'no data yet'}</div></div></div>`}
+function totOf(){const {L,T}=compute('cluster','');const t={TA:0,AA:0,LA:0};L.forEach(e=>{t.TA+=e.TA;t.AA+=e.AA;t.LA+=e.LA});return{t,T}}
+function vToday(){U='qty';const{L,T}=compute('item','');const{t}=totOf();L.sort((a,b)=>b.TA-a.TA);
+return perfStrip()+head(T,t)+`<h2>What each item needs today — ${DAY} <span style="font-weight:400;color:var(--mut)">(units = plan for today + units missed earlier)</span></h2><div class="grid">`+L.filter(e=>e.T>0.5).map(e=>{const c=stCls(e.pct);
+return`<div class="ic ${c}" onclick="openItem('${itemOf(e.k)}')"><div class="n">${e.l.split(' — ')[0]}</div><div class="nm">${e.l.split(' — ')[1]}</div>
+<div class="big">${q(Math.ceil(e.ask))} <span style="font-size:12px;font-weight:600;color:var(--mut)">units today</span></div><div class="sub">${rs(e.ask*P[itemOf(e.k)])} · plan/day ${q(e.dayPlan)}</div>
+<div class="pb"><i style="width:${Math.min(100,e.T?e.A/e.T*100:0)}%"></i></div><div class="sub">Done ${q(e.A)} of ${q(e.T)} · ${e.gap>0?'behind '+q(e.gap):'ahead '+q(-e.gap)}</div></div>`}).join('')+'</div>'}
+const itemOf=k=>k.split(' ')[0]=='RR'?'RD':k.split(' ')[0];
+function vTill(){U='qty';const{L,T}=compute('item','');const{t}=totOf();L.sort((a,b)=>b.gap*P[itemOf(b.k)]-a.gap*P[itemOf(a.k)]);
+return head(T,t)+`<h2>Achievement till date (up to ${DAY}, excluding today)</h2><div class="tw"><table><thead><tr><th>Item</th><th>Month target</th><th>Target till date</th><th>Achieved</th><th>Gap</th><th>Achv %</th><th>Gap ₹</th><th>Status</th></tr></thead><tbody>`+
+L.filter(e=>e.T>0.5).map(e=>{const s=st(e.pct);return`<tr class="cl" onclick="openItem('${itemOf(e.k)}')"><td>${e.l}</td><td>${q(e.T)}</td><td>${q(e.TP)}</td><td>${q(e.A)}</td><td class="${e.gap>0?'bad':'good'}">${e.gap>0?'-'+q(e.gap):'+'+q(-e.gap)}</td><td>${e.pct==null?'—':e.pct.toFixed(0)+'%'}</td><td>${rs(e.gap*P[itemOf(e.k)])}</td><td><span class="tag ${s[1]}">${s[0]}</span></td></tr>`}).join('')+'</tbody></table></div><div style="font-size:12px;color:var(--mut);margin-top:8px">Counts are units. Click an item to see it by workshop / advisor.</div>'}
+function openItem(i){F.i=i;tab='break';U=i?'qty':'amt';render()}
+function vBreak(){const sel=F.i||'';const{L,T}=compute(levelKey(),sel);const{t}=totOf();L.sort((a,b)=>b.gap-a.gap);
+const seg=(arr,cur,fn)=>`<div class="seg">${arr.map(([k,l])=>`<button class="${k==cur?'on':''}" onclick="${fn}('${k}')">${l}</button>`).join('')}</div>`;
+const sT=L.reduce((s,e)=>s+e.T,0),ch=sel?`<div class="chips"><div class="k"><div class="l">${dsp(sel)} · monthly</div><div class="v">${q(sT)} units</div></div><div class="k"><div class="l">Weekly (6 days)</div><div class="v">${q(sT/T.tot*6)}</div></div><div class="k"><div class="l">Daily plan</div><div class="v">${q(sT/T.tot)}</div></div><div class="k"><div class="l">Revised daily need</div><div class="v">${q(Math.max(0,(sT-L.reduce((s,e)=>s+e.A,0))/T.rem))}</div></div></div>`:'';
+const advNote=level=='advisor'?'<p style="font-size:11.5px;color:var(--mut);margin:0 0 10px">Advisor figures are estimated: the sheet reports branch totals only, split here across advisors by their target share.</p>':'';
+return`<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:12px">${seg([['cluster','Cluster'],['zone','Zone'],['workshop','Workshop'],['advisor','Advisor']],level,'setLevel')}${seg([['amt','₹ Value'],['qty','Units']],U,'setU')}<b>${sel?dsp(sel)+' — '+esc(NM[sel]):'All items'}</b>${sel?'<button class="btn g" style="color:var(--acc);background:var(--line)" onclick="openItem(\'\')">Clear item</button>':''}</div>${ch}${advNote}
+<div class="tw"><table><thead><tr><th>${level}</th><th>Last 3-mo avg</th><th>Month target</th><th>Plan/day</th><th>Target till date</th><th>Achieved</th><th>Gap</th><th>Achv %</th><th>Needed/day now</th><th>Status</th></tr></thead><tbody>`+
+(L.length?L.map(e=>{const s=st(e.pct);return`<tr class="cl" onclick="drill('${e.k.replace(/'/g,"\\'")}')"><td>${esc(e.l)}</td><td>${fv(e.L)}</td><td>${fv(e.T)}</td><td>${fv(e.dayPlan)}</td><td>${fv(e.TP)}</td><td>${fv(e.A)}</td><td class="${e.gap>0?'bad':'good'}">${e.gap>0?'-':'+'}${fv(Math.abs(e.gap))}</td><td>${e.pct==null?'—':e.pct.toFixed(0)+'%'}</td><td>${fv(e.need)}</td><td><span class="tag ${s[1]}">${s[0]}</span></td></tr>`}).join(''):'<tr><td colspan="10" style="text-align:center;color:var(--mut);padding:20px">No rows for this scope</td></tr>')+`</tbody></table></div><div style="font-size:12px;color:var(--mut);margin-top:8px">"Last 3-mo avg" = May–Jul average from the ₹1 Cr plan file. Sorted by largest gap first. Click a row to drill down.</div>`}
+const levelKey=()=>level;
+function setLevel(l){level=l;render()}function setU(u){U=u;render()}
+function drill(k){if(level=='cluster'){F.c=k;level='zone'}else if(level=='zone'){F.z=k;const m=Object.keys(BRX).find(b=>BRX[b][0]==k);F.c=m?BRX[m][1]:'';level='workshop'}else if(level=='workshop'){F.b=k;F.z=(BRX[k]||['',''])[0];F.c=(BRX[k]||['',''])[1];level='advisor'}render()}
+
+// cumulative achieved (whole scope, optional item) AS OF a given calendar day — the sheet's own semantics
+function cumulativeAt(day,item){
+  let v=0;
+  Object.keys(BRX).forEach(b=>{ if(!inF(BRX[b][1],BRX[b][0],b)) return;
+    ['srv','bds'].forEach(dept=>{
+      if(item){ const snap=latestAtOrBefore(ITEMQ[b+'|'+dept+'|'+item],day); if(snap) v+=snap.qty*(P[item]||0); }
+      else { const snap=latestAtOrBefore(REV[b+'|'+dept],day); if(snap) v+=snap.value; }
+    });
+  });
+  return v;
+}
+function vTrend(){
+  const T=timeCtx(),sel=F.i;
+  let tgt=0;ADV.forEach(a=>{if(inF(a.c,a.z,a.br))tgt+=sel?(a.tA[sel]||0):a.tgt});
+  const days=T.wd;
+  const A=cumulativeAt(addDays(DAY,-1),sel);
+  const need=T.rem>0?Math.max(0,(tgt-A)/T.rem):Math.max(0,tgt-A);
+  const act=[],cA=[],cT=[],plan=[],rev=[],path=[];
+  days.forEach((d,i)=>{const past=d<DAY;plan.push(tgt/T.tot);cT.push(tgt*(i+1)/T.tot);
+    if(past){const cum=cumulativeAt(d,sel);const prev=cumulativeAt(addDays(d,-1),sel);cA.push(cum);act.push(cum-prev);rev.push(null);}
+    else{cA.push(null);act.push(null);rev.push(need);}
+    path.push(null);
+  });
+  if(T.past>0)path[T.past-1]=A;
+  for(let i=T.past;i<days.length;i++)path[i]=A+need*(i-T.past+1);
+  setTimeout(()=>{charts.forEach(c=>c.destroy());charts=[];const lb=days.map(d=>+d.slice(8)),o=(t)=>({responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:t}},scales:{y:{ticks:{callback:v=>rs(v)}}},interaction:{mode:'index',intersect:false}});
+  const L=(l,d,c,dash)=>({label:l,data:d,borderColor:c,backgroundColor:c,pointRadius:2,tension:.25,borderDash:dash||[],spanGaps:false});
+  charts.push(new Chart($('c1'),{type:'line',data:{labels:lb,datasets:[L('Achieved / day',act,'#2E6FDB'),L('Plan / day',plan,'#0F9D74',[6,4]),L('Revised need / day',rev,'#C0392B',[2,3])]},options:o('Day-wise achievement — '+(sel?dsp(sel):'all items'))}));
+  charts.push(new Chart($('c2'),{type:'line',data:{labels:lb,datasets:[L('Cumulative achieved',cA,'#2E6FDB'),L('Cumulative target',cT,'#0F9D74',[6,4]),L('Path needed to hit target',path,'#C0392B',[2,3])]},options:o('Cumulative vs target')}))},0);
+  return`<div class="cv"><canvas id="c1"></canvas></div><div class="cv"><canvas id="c2"></canvas></div><p style="font-size:11.5px;color:var(--mut);margin-top:-4px">"Achieved / day" is the change between consecutive sheet updates — if a day is skipped, its progress shows on the next date the sheet was updated.</p>`}
+
+function render(){fillSel();$('tabs').innerHTML=TABS.map(([k,l])=>`<button class="${k==tab?'on':''}" onclick="tab='${k}';if(tab=='break')U=F.i?'qty':'amt';render()">${l}</button>`).join('');
+const ld=lastDataDate();const nBranches=Object.keys(REV).map(k=>k.split('|')[0]).filter((v,i,a)=>a.indexOf(v)===i).length;
+$('stat').textContent=ld?`Cumulative through ${ld} · ${nBranches} branch(es) reporting`:'No data synced yet';
+let h='';
+if(SYNC_ERR)h+=`<div class="note">⚠ Could not reach the Google Sheet just now (${esc(SYNC_ERR)}). ${LAST_SYNC?'Showing the last successfully synced data.':'Click Refresh to try again.'}</div>`;
+if(!ld && !SYNC_ERR)h+=`<div class="note" style="background:var(--card);color:var(--ink);border:1px solid var(--line)">No data synced from the sheet yet.</div>`;
+const warnMsgs=SYNC_WARN.filter(w=>!w.startsWith('unk:'));
+h+=`<details><summary>Connected data source</summary><p>Reading live from your Google Sheet — tabs <b>${esc(TAB_REVENUE)}</b>, <b>${esc(TAB_SRV)}</b>, <b>${esc(TAB_BDS)}</b>. Each row is read as your <b>cumulative month-to-date total as of its Date column</b> (not a single day's transactions) — matches your "till date" report format. The latest date found is treated as "achieved through yesterday," and Today's Ask projects forward from there. Advisor-level achieved is <b>estimated</b> by splitting each branch+department's real total across its advisors in proportion to their monthly target share — the sheet itself reports branch totals only, not per-advisor figures.</p>${warnMsgs.length?'<p style="color:var(--warn)">'+warnMsgs.map(esc).join('<br>')+'</p>':''}</details>`;
+h+=({today:vToday,till:vTill,break:vBreak,trend:vTrend})[tab]();$('main').innerHTML=h}
+
+function effDark(){const t=document.documentElement.dataset.theme;return t?t=='dark':matchMedia('(prefers-color-scheme:dark)').matches}
+function applyTheme(t){document.documentElement.dataset.theme=t;$('thm').textContent=t=='dark'?'☀ Light':'🌙 Dark';try{localStorage.setItem('vas1cr_theme',t)}catch(e){}if(tab=='trend')render()}
+function toggleTheme(){applyTheme(effDark()?'light':'dark')}
+let th=null;try{th=localStorage.getItem('vas1cr_theme')}catch(e){}
+$('tgtChip').textContent='Target '+rs(TOTAL_TARGET);
+BRX=Object.assign({},BR);
+DAY=ymd(new Date());$('dayIn').value=DAY;
+applyTheme(th||(effDark()?'dark':'light'));
+render();
+fetchAll(false);
+</script></body></html>
