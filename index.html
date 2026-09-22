@@ -45,7 +45,7 @@ tbody tr:hover{background:rgba(46,111,219,.06)}tr.cl{cursor:pointer}
 details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:var(--mut)}summary{cursor:pointer;font-weight:700;color:var(--ink)}
 .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.chips .k{padding:9px 14px}.chips .v{font-size:16px}
 </style></head><body>
-<div class="top"><div><h1>VAS Projection · Commitment · Achievement</h1><small>AM Motors — live from your Google Sheet, cumulative month-to-date</small></div>
+<div class="top"><div><h1>VAS Projection · Commitment · Achievement</h1><small>AM Motors — live from your Google Sheet, daily VAS log</small></div>
 <div class="ctl"><span class="chip" id="tgtChip">Target</span>
 <span class="chip" id="syncStatus">Connecting…</span>
 <span class="chip" id="asOfChip" style="background:var(--line);color:var(--ink)">Today</span>
@@ -67,6 +67,11 @@ const F={c:'',z:'',b:'',i:''};let DAY='';
 const ADV=D.adv.map((a,ix)=>{const [id,name,br,dept,tgt,last]=a;const w=D.mix[br+'|'+dept]||D.mix['*|'+dept];const o={ix,id,name,br,dept,tgt,last,z:BR[br][0],c:BR[br][1],tA:{},lA:{},tq:0,lq:0};
 ITEMS.forEach(i=>{const x=w[i]||0;o.tA[i]=tgt*x;o.lA[i]=last*x;o.tq+=o.tA[i]/P[i];o.lq+=o.lA[i]/P[i]});return o});
 const TOTAL_TARGET=ADV.reduce((s,a)=>s+a.tgt,0);
+// Each branch's target split between Service / Bodyshop, from the plan — used to
+// proportion a branch's daily figure when the live sheet reports one combined
+// number instead of a Bodyshop/Service breakout (see parseRevenue below).
+const BR_DEPT_W={};(function(){const acc={};ADV.forEach(a=>{const o=acc[a.br]||(acc[a.br]={srv:0,bds:0});o[a.dept]=(o[a.dept]||0)+a.tgt});Object.keys(acc).forEach(b=>{const o=acc[b],tot=o.srv+o.bds;BR_DEPT_W[b]=tot?{srv:o.srv/tot,bds:o.bds/tot}:{srv:.5,bds:.5}})})();
+function branchDeptWeight(b){return BR_DEPT_W[b]||{srv:.5,bds:.5}}
 const norm=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''),nb=s=>String(s||'').toUpperCase().replace(/[^A-Z]/g,'');
 const byId={},byName={};ADV.forEach(a=>{byId[norm(a.id)]=a;byName[nb(a.name)]=a});
 /* ---------- format ---------- */
@@ -85,14 +90,18 @@ m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);if(m){let y=+m[3];if(y<1
 /* ==================================================================
    LIVE GOOGLE SHEET CONNECTION
    Reads 3 tabs — "VAS Revenue", "SRV Item", "BDS Item" — from the
-   user's published sheet. Each row is treated as a CUMULATIVE
-   month-to-date snapshot AS OF its Date column (matches how the user
-   described the sheet: "shows till 21 Sep"), not a single day's
-   isolated transactions. "Achieved through day X" = the latest
-   snapshot on or before X, per branch+department. No advisor-level
-   figures exist in the feed, so advisor rows are estimated by
-   splitting each branch+department's real total across its advisors
-   in proportion to their monthly target share.
+   user's published sheet.
+   • VAS Revenue is a genuine DAILY LOG: one row per branch per calendar
+     date, values NOT cumulative — "achieved through day X" is the SUM
+     of every day's row strictly before X, per branch+department. The
+     sheet's header can be either the Bodyshop/Service split layout or
+     a single combined figure — both are auto-detected (parseRevenue).
+   • SRV Item / BDS Item are CUMULATIVE month-to-date snapshots as of
+     their Date column — "achieved through day X" is the latest
+     snapshot on or before X.
+   No advisor-level figures exist in the feed, so advisor rows are
+   estimated by splitting each branch+department's real total across
+   its advisors in proportion to their monthly target share.
    ================================================================== */
 const SHEET_ID='1dM0nil7-O10_nzvVmtq43W5oY5h3AIoZ4sfa3WymA2E';
 const TAB_REVENUE='VAS Revenue', TAB_SRV='SRV Item', TAB_BDS='BDS Item';
@@ -165,42 +174,70 @@ async function fetchTab(name){
   }
   return fetchTabJsonp(name);
 }
-function mergeBranch(name, liveZone){
+// Branches the live sheet reports that aren't in the plan file, with their real
+// zone/cluster (learned once from the sheet's own grouping before it was flattened
+// to one-row-per-branch — see project notes). Anything else unknown falls back to "Unmapped".
+const KNOWN_ZONE={'33-PATTAMBI-NEXA':['ZONE-2','CLUSTER-2']};
+function mergeBranch(name){
   if(!name) return;
-  if(!BRX[name]) BRX[name]=BR[name]?BR[name].slice():[liveZone||'Unmapped','Unmapped'];
-  else if(!BR[name] && liveZone && BRX[name][0]==='Unmapped') BRX[name][0]=liveZone;
+  if(!BRX[name]) BRX[name]=BR[name]?BR[name].slice():(KNOWN_ZONE[name]?KNOWN_ZONE[name].slice():['Unmapped','Unmapped']);
 }
 function pushSorted(map,key,rec){(map[key]=map[key]||[]).push(rec)}
 function finalizeSorted(map){Object.values(map).forEach(arr=>arr.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0))}
 function latestBefore(arr,day){if(!arr)return null;let best=null;for(const s of arr){if(s.date<day)best=s;else break}return best}
 function latestAtOrBefore(arr,day){if(!arr)return null;let best=null;for(const s of arr){if(s.date<=day)best=s;else break}return best}
+// REV is a genuine DAILY LOG now (one row per branch per calendar date — confirmed
+// against the live sheet: day-to-day VAS values are NOT monotonically increasing).
+// Stored as REV[branch+'|'+dept][date] = {value,load} — keyed by date so a duplicate
+// row for the same date overwrites instead of double-counting.
+function setDailyRev(key,date,rec){(REV[key]=REV[key]||{})[date]=rec}
+function sumRevBefore(key,cutoff){const m=REV[key];if(!m)return{value:0,load:0};let value=0,load=0;Object.keys(m).forEach(d=>{if(d<cutoff){value+=m[d].value;load+=m[d].load}});return{value,load}}
+function sumRevAtOrBefore(key,cutoff){const m=REV[key];if(!m)return{value:0,load:0};let value=0,load=0;Object.keys(m).forEach(d=>{if(d<=cutoff){value+=m[d].value;load+=m[d].load}});return{value,load}}
 
+// Revenue tab layout — auto-detected, no zone column (branch is column A directly).
+// Two shapes are supported:
+//  (a) split:    Workshop, BODYSHOP LOAD COUNT, VAS, PER CAR, SERVICE LOAD COUNT, VAS, PER CAR, Total LOAD COUNT, VAS, PER CAR, Date
+//  (b) combined: Workshop, LOAD COUNT, VAS, PER CAR, Date  (single figure, no Bodyshop/Service split)
+// For (b) the daily figure is proportioned into srv/bds using that branch's
+// target split from the plan (branchDeptWeight), so every downstream calc
+// (achievedBranchDept, advisor splitting, filters) keeps working unchanged.
 function parseRevenue(rows){
   if(!rows||!rows.length) return;
   const H=rows[0];
   const iDate=findCol(H,/^date/i);
+  if(iDate<0){SYNC_WARN.push(TAB_REVENUE+': no "Date" column found');return}
   const iBdsLoad=findCol(H,/bodyshop load/i), iBdsVas=iBdsLoad>=0?iBdsLoad+1:-1;
   const iSrvLoad=findCol(H,/service load/i), iSrvVas=iSrvLoad>=0?iSrvLoad+1:-1;
-  if(iDate<0){SYNC_WARN.push(TAB_REVENUE+': no "Date" column found');return}
-  let curZone='';
+  const SPLIT=iBdsLoad>=0 && iSrvLoad>=0;
+  const iLoad=SPLIT?-1:findCol(H,/load\s*count/i);
+  const iVas=SPLIT?-1:(iLoad>=0?iLoad+1:findCol(H,/^vas$/i));
+  if(!SPLIT && iLoad<0 && iVas<0){SYNC_WARN.push(TAB_REVENUE+': could not find LOAD COUNT / VAS columns');return}
   for(let r=1;r<rows.length;r++){
     const row=rows[r]; if(!row||!row.length) continue;
-    const zc=String(row[0]||'').trim(), bc=String(row[1]||'').trim();
-    if(zc && zc!=='Total') curZone=zc;
-    if(!bc || bc==='Total') continue;
+    const bc=String(row[0]||'').trim();
+    if(!bc || /^total$/i.test(bc)) continue;
     const date=toDate(row[iDate]); if(!date) continue;
-    mergeBranch(bc,curZone);
-    if(iBdsVas>=0) pushSorted(REV, bc+'|bds', {date, value:num(row[iBdsVas]), load:num(row[iBdsLoad])});
-    if(iSrvVas>=0) pushSorted(REV, bc+'|srv', {date, value:num(row[iSrvVas]), load:num(row[iSrvLoad])});
+    mergeBranch(bc);
+    if(SPLIT){
+      if(iBdsVas>=0) setDailyRev(bc+'|bds', date, {value:num(row[iBdsVas]), load:num(row[iBdsLoad])});
+      if(iSrvVas>=0) setDailyRev(bc+'|srv', date, {value:num(row[iSrvVas]), load:num(row[iSrvLoad])});
+    } else {
+      const value=num(row[iVas]), load=num(row[iLoad]), w=branchDeptWeight(bc);
+      setDailyRev(bc+'|srv', date, {value:value*w.srv, load:load*w.srv});
+      setDailyRev(bc+'|bds', date, {value:value*w.bds, load:load*w.bds});
+    }
   }
 }
+// Item tabs layout (also no zone column now): Workshop, <item codes...>, Total, Date.
+// These remain CUMULATIVE month-to-date snapshots (per the user: "till date data
+// show in the google sheet") — unlike revenue, which is a genuine daily log.
 function parseItemSheet(rows, dept, label){
   if(!rows||!rows.length) return;
   const H=rows[0];
   const iDate=findCol(H,/^date/i);
   if(iDate<0){SYNC_WARN.push(label+': no "Date" column found');return}
   const items=[];
-  for(let i=2;i<iDate;i++){
+  for(let i=1;i<iDate;i++){
     const h=String(H[i]||'').trim(); if(!h) continue;
     if(/^total\b/i.test(h)) continue;
     let code=h.split(' Count')[0].trim();
@@ -209,14 +246,12 @@ function parseItemSheet(rows, dept, label){
     if(!P[code]){ if(!SYNC_WARN.includes('unk:'+code)){SYNC_WARN.push('unk:'+code); SYNC_WARN.push(label+': unrecognized item code "'+code+'" — ignored');} continue; }
     items.push({code, idx:i});
   }
-  let curZone='';
   for(let r=1;r<rows.length;r++){
     const row=rows[r]; if(!row||!row.length) continue;
-    const zc=String(row[0]||'').trim(), bc=String(row[1]||'').trim();
-    if(zc && zc!=='Total') curZone=zc;
-    if(!bc || bc==='Total') continue;
+    const bc=String(row[0]||'').trim();
+    if(!bc || /^total$/i.test(bc)) continue;
     const date=toDate(row[iDate]); if(!date) continue;
-    mergeBranch(bc,curZone);
+    mergeBranch(bc);
     items.forEach(({code,idx})=>{ pushSorted(ITEMQ, bc+'|'+dept+'|'+code, {date, qty:num(row[idx])}); });
   }
 }
@@ -238,7 +273,7 @@ async function fetchAll(manual){
     parseRevenue(rev);
     parseItemSheet(srv,'srv',TAB_SRV);
     parseItemSheet(bds,'bds',TAB_BDS);
-    finalizeSorted(REV); finalizeSorted(ITEMQ);
+    finalizeSorted(ITEMQ);
     LAST_SYNC=new Date(); SYNC_ERR=null;
     saveCache();
     setSync('● Live — synced '+LAST_SYNC.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),'ok');
@@ -252,7 +287,7 @@ async function fetchAll(manual){
 }
 
 /* ---------- date of latest data / tracking-day default ---------- */
-function lastDataDate(){let m='';Object.values(REV).forEach(arr=>arr.forEach(s=>{if(s.date>m)m=s.date}));Object.values(ITEMQ).forEach(arr=>arr.forEach(s=>{if(s.date>m)m=s.date}));return m}
+function lastDataDate(){let m='';Object.values(REV).forEach(datesObj=>Object.keys(datesObj).forEach(d=>{if(d>m)m=d}));Object.values(ITEMQ).forEach(arr=>arr.forEach(s=>{if(s.date>m)m=s.date}));return m}
 // DAY always tracks the real calendar date — no manual override. "Achieved" everywhere
 // is read as the latest sheet snapshot strictly before DAY, i.e. "through yesterday."
 function setToday(){DAY=ymd(new Date());const d=pd(DAY);const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];$('asOfChip').textContent='Today · '+d.getDate()+' '+mn[d.getMonth()]}
@@ -272,16 +307,17 @@ for(let i=1;i<=n;i++){const s=ymd(new Date(y,m,i));if(isWd(s))wd.push(s)}
 const past=wd.filter(x=>x<DAY).length,tot=wd.length,today=isWd(DAY)?1:0,ym=DAY.slice(0,7);
 return{wd,past,tot,rem:tot-past,fP:past/tot,fT:(past+today)/tot,ym,y,m,n}}
 
-// achieved value (and qty/load) for one branch+dept, as of the latest snapshot strictly before `cutoff`.
-// item: pass an item code to read from the item-quantity feed instead of the revenue feed.
+// achieved value (and qty/load) for one branch+dept, strictly before `cutoff`.
+// item: cumulative snapshot (latest reading before cutoff) — from the item-quantity feed.
+// no item: revenue — a genuine daily log, so this SUMS every day's row before cutoff.
 function achievedBranchDept(branch,dept,cutoff,item){
   if(item){
     const snap=latestBefore(ITEMQ[branch+'|'+dept+'|'+item],cutoff);
     const qty=snap?snap.qty:0;
     return {value:qty*(P[item]||0), qty, load:0};
   }
-  const snap=latestBefore(REV[branch+'|'+dept],cutoff);
-  return {value:snap?snap.value:0, qty:0, load:snap?snap.load:0};
+  const r=sumRevBefore(branch+'|'+dept,cutoff);
+  return {value:r.value, qty:0, load:r.load};
 }
 
 function compute(g,sel){
@@ -329,7 +365,7 @@ function perfOf(){
   const cutoff=DAY;
   let value=0, load=0;
   Object.keys(BRX).forEach(b=>{ if(!inF(BRX[b][1],BRX[b][0],b)) return;
-    ['srv','bds'].forEach(dept=>{ const snap=latestBefore(REV[b+'|'+dept],cutoff); if(snap){ value+=snap.value; load+=snap.load; } });
+    ['srv','bds'].forEach(dept=>{ const r=sumRevBefore(b+'|'+dept,cutoff); value+=r.value; load+=r.load; });
   });
   const {L}=compute('cluster',''); let LA=0; L.forEach(e=>LA+=e.LA);
   const advN=ADV.filter(a=>inF(a.c,a.z,a.br)).length||1;
@@ -404,7 +440,7 @@ function cumulativeAt(day,item){
   Object.keys(BRX).forEach(b=>{ if(!inF(BRX[b][1],BRX[b][0],b)) return;
     ['srv','bds'].forEach(dept=>{
       if(item){ const snap=latestAtOrBefore(ITEMQ[b+'|'+dept+'|'+item],day); if(snap) v+=snap.qty*(P[item]||0); }
-      else { const snap=latestAtOrBefore(REV[b+'|'+dept],day); if(snap) v+=snap.value; }
+      else { v+=sumRevAtOrBefore(b+'|'+dept,day).value; }
     });
   });
   return v;
