@@ -89,7 +89,14 @@ function branchDeptWeight(b){return BR_DEPT_W[b]||{srv:.5,bds:.5}}
 const norm=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''),nb=s=>String(s||'').toUpperCase().replace(/[^A-Z]/g,'');
 const byId={},byName={};ADV.forEach(a=>{byId[norm(a.id)]=a;byName[nb(a.name)]=a});
 /* ---------- format ---------- */
-const rs=n=>{const s=n<0?'-':'',a=Math.abs(n||0);return s+'₹'+(a>=1e7?Math.round(a/1e7)+' Cr':a>=1e5?Math.round(a/1e5)+' L':Math.round(a).toLocaleString('en-IN'))};
+// Cr/L amounts keep 2 decimals while the number itself is small (<100, where the
+// precision actually matters — e.g. 15.15 L vs 15.16 L), and drop decimals once it
+// reaches 100+ (150 L, not 150.00 L). Plain-rupee amounts (below ₹1 L) are always
+// whole rupees — there's never a "below 1" fractional-rupee case to show.
+const rs=n=>{const s=n<0?'-':'',a=Math.abs(n||0);
+  if(a>=1e7){const v=a/1e7;return s+'₹'+(v>=100?Math.round(v):v.toFixed(2))+' Cr'}
+  if(a>=1e5){const v=a/1e5;return s+'₹'+(v>=100?Math.round(v):v.toFixed(2))+' L'}
+  return s+'₹'+Math.round(a).toLocaleString('en-IN')};
 const q=n=>Math.round(n||0).toLocaleString('en-IN');
 const fv=n=>U=='qty'?q(n):rs(n);
 const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
