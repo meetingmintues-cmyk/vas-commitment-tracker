@@ -52,9 +52,11 @@ details{background:var(--card);border:1px solid var(--line);border-radius:12px;p
 .needbadge{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:800;margin-left:8px}.needbadge.good{background:var(--goodbg);color:var(--good)}.needbadge.bad{background:var(--badbg);color:var(--bad)}
 .ic2{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--mut);border-radius:14px;padding:14px 16px;cursor:pointer}
 .ic2:hover{box-shadow:0 4px 14px rgba(20,30,60,.12)}.ic2.good{border-left-color:var(--good)}.ic2.warn{border-left-color:var(--warn)}.ic2.bad{border-left-color:var(--bad)}
-.ic2 .h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}.ic2 .h b{font-size:13.5px}.ic2 .h .nm{font-size:11px;color:var(--mut);text-align:right;max-width:52%}
+.ic2 .h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}.ic2 .h b{font-size:13.5px}.ic2 .h .nm{font-size:11px;color:var(--mut);text-align:right;max-width:52%}
+.ic2 .hero{font-size:27px;font-weight:800;line-height:1.1;margin-top:2px}.ic2 .hero .heroLbl{font-size:11.5px;font-weight:600;color:var(--mut);margin-left:6px}
+.ic2 .sub{font-size:12px;color:var(--mut);margin:2px 0 8px}
 .ic2 .r{display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;color:var(--mut)}.ic2 .r b{color:var(--ink);font-weight:700}.ic2 .r.gap b{color:var(--bad)}
-.ic2 .foot{display:flex;justify-content:space-between;font-size:11.5px;color:var(--mut);margin-top:6px}.ic2 .foot .p{font-weight:800;color:var(--ink)}
+.ic2 .foot{display:flex;justify-content:space-between;font-size:11.5px;color:var(--mut);margin:6px 0 4px}.ic2 .foot .p{font-weight:800;color:var(--ink)}
 .ic2 .extra{font-size:11px;color:var(--mut);margin-top:8px;padding-top:8px;border-top:1px solid var(--line);display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 10px}
 </style></head><body>
 <div class="top"><div><h1>VAS Projection · Commitment · Achievement</h1><small>AM Motors — live from your Google Sheet, daily VAS log</small></div>
@@ -446,44 +448,50 @@ function totOf(){const {L,T}=compute('cluster','');const t={TA:0,AA:0,LA:0};L.fo
 function homePerfBy(){
   const {L,T}=compute(level,'');
   const rows=L.map(e=>{
-    const target=e.TA,achieved=e.AA,gap=Math.max(0,target-achieved),pct=target?achieved/target*100:0;
+    const target=e.TA,tillDate=target*T.fP,achieved=e.AA,gap=Math.max(0,tillDate-achieved),pct=tillDate?achieved/tillDate*100:(achieved>0?100:null);
     const req=T.rem>0?Math.max(0,target-achieved)/T.rem:Math.max(0,target-achieved);
-    const lastMoDay=T.tot?e.LA/T.tot:0;
-    return{k:e.k,l:e.l,target,achieved,gap,pct,req,lastMoDay};
+    const advN=level=='advisor'?1:ADV.filter(a=>gk(level,a.ix,a.br)===e.k && inF(a.c,a.z,a.br)).length;
+    const avgDay=T.tot?e.LA/T.tot:0;
+    return{k:e.k,l:e.l,target,tillDate,achieved,gap,pct,req,advN,avgDay};
   }).sort((a,b)=>b.gap-a.gap);
   const top=rows.slice(0,12);
+  // Achieved vs TARGET TILL DATE (not the full month figure) — this is what actually shows
+  // which workshops are tracking to plan vs falling behind, since we're only partway through the month.
   if(top.length){setTimeout(()=>{const el=$('homeChart');if(!el)return;
     charts.push(new Chart(el,{type:'bar',data:{labels:top.map(r=>r.l),datasets:[
       {label:'Achieved',data:top.map(r=>r.achieved),backgroundColor:'#2E6FDB',borderRadius:4,maxBarThickness:22},
-      {label:'Target',data:top.map(r=>r.target),backgroundColor:'#E8703A',borderRadius:4,maxBarThickness:22}
-    ]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},scales:{x:{ticks:{callback:v=>rs(v)}}}}}));
+      {label:'Target till date',data:top.map(r=>r.tillDate),backgroundColor:'#E8703A',borderRadius:4,maxBarThickness:22}
+    ]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'},title:{display:true,text:'Achieved vs target till date, up to '+DAY+' — tracked vs behind'}},scales:{x:{ticks:{callback:v=>rs(v)}}}}}));
   },0)}
   const seg=(arr,cur,fn)=>`<div class="seg">${arr.map(([k,l])=>`<button class="${k==cur?'on':''}" onclick="${fn}('${k}')">${l}</button>`).join('')}</div>`;
   return`<h2>Performance By <span style="font-weight:400;color:var(--mut)">— ${T.tot} working days this month · ${T.rem} left · click a row to drill in</span></h2>
 <div style="margin-bottom:10px">${seg([['cluster','Cluster'],['zone','Zone'],['workshop','Branch / Workshop'],['advisor','Advisor']],level,'setLevel')}</div>
 <div class="grid2">
 ${top.length?`<div class="cv" style="height:${Math.max(220,top.length*34)}px"><canvas id="homeChart"></canvas></div>`:'<div class="tw" style="padding:20px;color:var(--mut)">No rows for this scope</div>'}
-<div class="tw" style="max-height:${Math.max(220,top.length*34)+44}px;overflow:auto"><table><thead><tr><th>${level}</th><th>Target</th><th>Achieved</th><th>Gap</th><th>%</th><th>Req/day</th><th>Last mo/day</th></tr></thead><tbody>
-${rows.length?rows.map(r=>`<tr class="cl" onclick="drill('${r.k.replace(/'/g,"\\'")}')"><td>${esc(r.l)}</td><td>${rs(r.target)}</td><td>${rs(r.achieved)}</td><td class="${r.gap>0?'bad':'good'}">${rs(r.gap)}</td><td>${r.pct.toFixed(0)}%</td><td>${rs(r.req)}</td><td>${rs(r.lastMoDay)}</td></tr>`).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--mut);padding:16px">No rows for this scope</td></tr>'}
+<div class="tw" style="max-height:${Math.max(220,top.length*34)+44}px;overflow:auto"><table><thead><tr><th>${level}</th><th>Month target</th><th>Target till date</th><th>Achieved</th><th>Gap</th><th>%</th><th>Req/day</th><th>Advisors</th><th>Avg/day (last mo)</th></tr></thead><tbody>
+${rows.length?rows.map(r=>{const s=st(r.pct);return`<tr class="cl" onclick="drill('${r.k.replace(/'/g,"\\'")}')"><td>${esc(r.l)}</td><td>${rs(r.target)}</td><td>${rs(r.tillDate)}</td><td>${rs(r.achieved)}</td><td class="${r.gap>0?'bad':'good'}">${rs(r.gap)}</td><td><span class="tag ${s[1]}">${r.pct==null?'—':r.pct.toFixed(0)+'%'}</span></td><td>${rs(r.req)}</td><td>${r.advN}</td><td>${rs(r.avgDay)}</td></tr>`}).join(''):'<tr><td colspan="9" style="text-align:center;color:var(--mut);padding:16px">No rows for this scope</td></tr>'}
 </tbody></table></div></div>`}
 function bigBar(tot){const target=tot.TA,A=tot.AA,pct=target?Math.min(100,A/target*100):0;
 return`<div class="bigbar"><div class="row"><span class="pct">${pct.toFixed(1)}% achieved</span><span class="amt">${rs(A)} of ${rs(target)}</span></div><div class="pbbig"><i style="width:${pct}%"></i></div></div>`}
 function vToday(){U='qty';const{L,T}=compute('item','');const{t}=totOf();L.sort((a,b)=>b.TA-a.TA);
 const SPLIT=itemSplit(DAY);
-return bigBar(t)+head(T,t)+perfStrip()+homePerfBy()+`<h2>What each item needs today — ${DAY} <span style="font-weight:400;color:var(--mut)">(remaining balance spread evenly across the working days left — counts, not ₹)</span></h2><div class="grid">`+L.filter(e=>e.T>0.5||e.A>0.5).map(e=>{
+return bigBar(t)+head(T,t)+perfStrip()+homePerfBy()+`<h2>What each item needs today — ${DAY} <span style="font-weight:400;color:var(--mut)">(remaining balance spread evenly across the working days left)</span></h2><div class="grid">`+L.filter(e=>e.T>0.5||e.A>0.5).map(e=>{
   const code=itemOf(e.k),c=stCls(e.pct),price=P[code]||0;
   const noTarget=e.T<=0.5;
-  const pct=e.T?Math.min(100,e.A/e.T*100):0;
-  const gapRaw=e.T-e.A,gapLabel=gapRaw>0?'Gap':'Surplus',gapVal=Math.abs(gapRaw);
-  const avgDay=T.past?e.A/T.past:0,sp=SPLIT[code]||{srv:0,bds:0};
+  const pctTD=e.pct==null?(e.A>0?100:0):Math.min(100,Math.max(0,e.pct));
+  const forecast=T.past?e.A/T.past*T.tot:0;
+  const sp=SPLIT[code]||{srv:0,bds:0};
   return`<div class="ic2 ${c}" onclick="openItem('${code}')">
 <div class="h"><b>${dsp(code)}</b><span class="nm">${esc((e.l.split(' — ')[1]||''))}</span></div>
-<div class="r"><span>Target (month)</span><b>${q(e.T)} u</b></div>
-<div class="r"><span>Achieved</span><b>${q(e.A)} u</b></div>
-<div class="r ${gapRaw>0?'gap':''}"><span>${gapLabel}</span><b style="${gapRaw<=0?'color:var(--good)':''}">${q(gapVal)} u</b></div>
-<div class="pbbig g"><i style="width:${pct}%"></i></div>
-<div class="foot"><span class="p">${noTarget?'No month target set':pct.toFixed(1)+'% done'}</span><span>${noTarget?rs(e.A*price)+' achieved':rs(e.A*price)+' of '+rs(e.T*price)}</span></div>
-<div class="extra"><span>Today: <b>${q(Math.ceil(e.need))} u</b></span><span>Per month: <b>${q(e.T)} u</b></span><span>Avg/day: <b>${q(avgDay)} u</b></span><span>Srv ${q(sp.srv)} · Bds ${q(sp.bds)}</span></div>
+<div class="hero">${q(Math.ceil(e.need))}<span class="heroLbl">units today</span></div>
+<div class="sub">${rs(e.need*price)} · plan/day ${q(e.dayPlan)}</div>
+<div class="pbbig g"><i style="width:${pctTD}%"></i></div>
+<div class="foot"><span class="p">${q(e.A)} of ${q(e.TP)} till yesterday</span><span>${e.gap>0?'behind '+q(e.gap):'ahead '+q(-e.gap)}</span></div>
+<div class="r"><span>Month target</span><b>${q(e.T)} u</b></div>
+<div class="r"><span>Target till yesterday</span><b>${q(e.TP)} u</b></div>
+<div class="r"><span>Achieved till yesterday</span><b>${q(e.A)} u</b></div>
+<div class="r"><span>Forecast (month-end)</span><b>${q(forecast)} u</b></div>
+<div class="extra"><span>Srv ${q(sp.srv)} · Bds ${q(sp.bds)}</span>${noTarget?'<span>No month target set</span>':''}</div>
 </div>`}).join('')+'</div>'}
 const itemOf=k=>k.split(' ')[0]=='RR'?'RD':k.split(' ')[0];
 function vTill(){U='qty';const{L,T}=compute('item','');const{t}=totOf();L.sort((a,b)=>b.gap*P[itemOf(b.k)]-a.gap*P[itemOf(a.k)]);
