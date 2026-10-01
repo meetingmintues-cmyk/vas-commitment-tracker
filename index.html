@@ -3,7 +3,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>AM Motors — VAS Projection · Commitment · Achievement</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{--bg:#F4F6FB;--card:#fff;--ink:#131A2B;--mut:#6B7688;--line:#E4E8F0;--nav:#0F1B3F;--acc:#2E6FDB;--good:#0F9D74;--gooddark:#0A5A42;--goodbg:#E4F7F0;--warn:#C98A17;--warnbg:#FDF2E0;--bad:#C0392B;--badbg:#FBEAE8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);font-family:'Segoe UI',system-ui,-apple-system,Arial,sans-serif}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0C1220;--card:#151E33;--ink:#E8EDF7;--mut:#93A0B8;--line:#26314B;--gooddark:#1B6B4F;--goodbg:#0E3A2E;--warnbg:#3F3113;--badbg:#45201F}}
@@ -64,11 +63,11 @@ details{background:var(--card);border:1px solid var(--line);border-radius:12px;p
 <span class="chip" id="syncStatus">Connecting…</span>
 <span class="chip" id="asOfChip" style="background:var(--line);color:var(--ink)">Today</span>
 <button class="btn g" onclick="fetchAll(true)">↻ Refresh</button>
+<button class="btn g" onclick="F.c='';F.z='';F.b='';F.i='';render()" title="Clear all filters">✕ Clear filters</button>
 <a class="btn g" href="https://docs.google.com/spreadsheets/d/1dM0nil7-O10_nzvVmtq43W5oY5h3AIoZ4sfa3WymA2E/edit?usp=sharing" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block">🔗 Open Sheet</a>
 <button class="btn g" id="thm" onclick="toggleTheme()">🌙 Dark</button></div></div>
 <div class="bar">
-<label>Cluster<select id="fC"></select></label><label>Zone<select id="fZ"></select></label><label>Workshop<select id="fB"></select></label><label>Item<select id="fI"></select></label>
-<button class="btn g" style="align-self:flex-end;padding:7px 11px;font-size:11.5px" onclick="F.c='';F.z='';F.b='';F.i='';render()" title="Clear all filters">✕ Clear filters</button>
+<label>Month<select id="fM"></select></label><label>Cluster<select id="fC"></select></label><label>Zone<select id="fZ"></select></label><label>Workshop<select id="fB"></select></label><label>Item<select id="fI"></select></label>
 <div style="margin-left:auto;font-size:12px;color:var(--mut)" id="stat"></div></div>
 <div class="tabs" id="tabs"></div>
 <main id="main"></main>
@@ -77,7 +76,7 @@ const D={"items":["A/C","A/C-D","EC","HF","IC","IPP","PR","SC","TF","TF-S","UB",
 const ITEMS=D.items,P=D.price,NM=D.names,BR=D.br,dsp=c=>c=='RD'?'RR':c=='HWSR'?'HWSR-W':c;
 const $=id=>document.getElementById(id);
 let U='amt',tab='today',level='workshop',charts=[];
-const F={c:'',z:'',b:'',i:''};let DAY='';
+const F={c:'',z:'',b:'',i:''};let DAY='';let SELMONTH='';
 /* ---------- advisors (target / market potential — from the plan, unchanged) ---------- */
 const ADV=D.adv.map((a,ix)=>{const [id,name,br,dept,tgt,last]=a;const w=D.mix[br+'|'+dept]||D.mix['*|'+dept];const o={ix,id,name,br,dept,tgt,last,z:BR[br][0],c:BR[br][1],tA:{},lA:{},tq:0,lq:0};
 ITEMS.forEach(i=>{const x=w[i]||0;o.tA[i]=tgt*x;o.lA[i]=last*x;o.tq+=o.tA[i]/P[i];o.lq+=o.lA[i]/P[i]});return o});
@@ -138,7 +137,28 @@ function gvizUrl(name){
   return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}&_ts=${Date.now()}`;
 }
 function num(v){const n=parseFloat(String(v==null?'':v).replace(/,/g,'').trim());return isNaN(n)?0:n}
-function csvRows(text){const wb=XLSX.read(text,{type:'string'});return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''})}
+// Small hand-rolled CSV parser (RFC4180-ish: quoted fields, "" escaping, embedded
+// commas/newlines inside quotes) — used only by the local test-fixture fetch path
+// (window.__GVIZ_OVERRIDE__). Deliberately NOT using a spreadsheet library's CSV
+// reader here: those tend to auto-detect date-like text and silently convert it
+// using a locale's month/day order (e.g. misreading "01-09-2026" as 9 Jan instead
+// of 1 Sep), which corrupted every date with day <= 12 in earlier testing. Plain
+// strings in, plain strings out — toDate() is solely responsible for interpreting
+// the date format, matching exactly what the real Google Sheets JSONP path hands it.
+function csvRows(text){
+  const rows=[];let row=[],field='',inQ=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(inQ){ if(c=='"'){ if(text[i+1]=='"'){field+='"';i++} else inQ=false } else field+=c }
+    else if(c=='"') inQ=true;
+    else if(c==',') { row.push(field); field='' }
+    else if(c=='\r') { /* skip; \n (below) ends the row */ }
+    else if(c=='\n') { row.push(field); rows.push(row); row=[]; field='' }
+    else field+=c;
+  }
+  if(field.length||row.length){ row.push(field); rows.push(row) }
+  return rows.filter(r=>!(r.length===1&&r[0]===''));
+}
 function findCol(H,re){return H.findIndex(h=>re.test(String(h||'').trim()))}
 
 /* Live fetch uses a JSONP <script> tag against the gviz endpoint, NOT fetch() —
@@ -206,15 +226,18 @@ function mergeBranch(name){
 }
 function pushSorted(map,key,rec){(map[key]=map[key]||[]).push(rec)}
 function finalizeSorted(map){Object.values(map).forEach(arr=>arr.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0))}
-function latestBefore(arr,day){if(!arr)return null;let best=null;for(const s of arr){if(s.date<day)best=s;else break}return best}
-function latestAtOrBefore(arr,day){if(!arr)return null;let best=null;for(const s of arr){if(s.date<=day)best=s;else break}return best}
+// `mstart` (optional) is the selected month's first date — bounds the lookup to that
+// month's own row(s) so a month with no data yet doesn't fall back to a previous
+// month's frozen total, and a past closed month doesn't pick up a later month's row.
+function latestBefore(arr,day,mstart){if(!arr)return null;let best=null;for(const s of arr){if(mstart&&s.date<mstart)continue;if(s.date<day)best=s;else break}return best}
+function latestAtOrBefore(arr,day,mstart){if(!arr)return null;let best=null;for(const s of arr){if(mstart&&s.date<mstart)continue;if(s.date<=day)best=s;else break}return best}
 // REV is a genuine DAILY LOG now (one row per branch per calendar date — confirmed
 // against the live sheet: day-to-day VAS values are NOT monotonically increasing).
 // Stored as REV[branch+'|'+dept][date] = {value,load} — keyed by date so a duplicate
 // row for the same date overwrites instead of double-counting.
 function setDailyRev(key,date,rec){(REV[key]=REV[key]||{})[date]=rec}
-function sumRevBefore(key,cutoff){const m=REV[key];if(!m)return{value:0,load:0};let value=0,load=0;Object.keys(m).forEach(d=>{if(d<cutoff){value+=m[d].value;load+=m[d].load}});return{value,load}}
-function sumRevAtOrBefore(key,cutoff){const m=REV[key];if(!m)return{value:0,load:0};let value=0,load=0;Object.keys(m).forEach(d=>{if(d<=cutoff){value+=m[d].value;load+=m[d].load}});return{value,load}}
+function sumRevBefore(key,cutoff,mstart){const m=REV[key];if(!m)return{value:0,load:0};let value=0,load=0;Object.keys(m).forEach(d=>{if((!mstart||d>=mstart)&&d<cutoff){value+=m[d].value;load+=m[d].load}});return{value,load}}
+function sumRevAtOrBefore(key,cutoff,mstart){const m=REV[key];if(!m)return{value:0,load:0};let value=0,load=0;Object.keys(m).forEach(d=>{if((!mstart||d>=mstart)&&d<=cutoff){value+=m[d].value;load+=m[d].load}});return{value,load}}
 
 // Revenue tab layout — auto-detected, no zone column (branch is column A directly).
 // Two shapes are supported:
@@ -250,16 +273,26 @@ function parseRevenue(rows){
     }
   }
 }
-// Item tabs layout (also no zone column now): Workshop, <item codes...>, Total, Date.
-// These remain CUMULATIVE month-to-date snapshots (per the user: "till date data
-// show in the google sheet") — unlike revenue, which is a genuine daily log.
+// Item tabs layout (also no zone column now): Workshop, <item codes...>, Total, Date —
+// OR, the newer layout: Workshop, <item codes...>, Total, From Date, To Date (one row
+// per branch PER MONTH: the row is updated in place while its month is in progress —
+// qty counts go up and "To Date" advances — and is left frozen once the month closes,
+// with a brand-new row appended for the next month). Both are auto-detected: when a
+// "To Date" column exists it's used as the row's date (the From Date column itself
+// isn't needed for parsing — see the SELMONTH month-bounding in timeCtx/achievedBranchDept,
+// which isolates the right month's row by date range rather than reading From Date).
+// Either way these are CUMULATIVE snapshots as of that date, not single-day transactions.
 function parseItemSheet(rows, dept, label){
   if(!rows||!rows.length) return;
   const H=rows[0];
-  const iDate=findCol(H,/^date/i);
-  if(iDate<0){SYNC_WARN.push(label+': no "Date" column found');return}
+  const iTo=findCol(H,/^to\s*date/i), iFrom=findCol(H,/^from\s*date/i);
+  const iDateOnly=findCol(H,/^date$/i);
+  const hasRange=iTo>=0;
+  const iDate=hasRange?iTo:iDateOnly;
+  if(iDate<0){SYNC_WARN.push(label+': no "Date" / "To Date" column found');return}
+  const stopCol=hasRange?(iFrom>=0?Math.min(iFrom,iTo):iTo):iDate;
   const items=[];
-  for(let i=1;i<iDate;i++){
+  for(let i=1;i<stopCol;i++){
     const h=String(H[i]||'').trim(); if(!h) continue;
     if(/^total\b/i.test(h)) continue;
     let code=h.split(' Count')[0].trim();
@@ -314,43 +347,75 @@ function lastDataDate(){let m='';Object.values(REV).forEach(datesObj=>Object.key
 // is read as the latest sheet snapshot strictly before DAY, i.e. "through yesterday."
 function setToday(){DAY=ymd(new Date());const d=pd(DAY);const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];$('asOfChip').textContent='Today · '+d.getDate()+' '+mn[d.getMonth()]}
 
+/* ---------- month slicer ---------- */
+// Every month that has ANY data (plus the real current month, always, even before its
+// first row lands) is selectable. SELMONTH defaults to the latest one — i.e. the real
+// current month — and fillSel() snaps it back to a valid choice if it's ever not
+// (e.g. first render, before anything has synced).
+function availMonths(){const s=new Set([DAY.slice(0,7)]);
+  Object.values(REV).forEach(o=>Object.keys(o).forEach(d=>s.add(d.slice(0,7))));
+  Object.values(ITEMQ).forEach(arr=>arr.forEach(e=>s.add(e.date.slice(0,7))));
+  return[...s].sort()}
+const MONTH_NAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
+function monthLabel(ym){const[y,m]=ym.split('-').map(Number);return MONTH_NAMES[m-1]+' '+y}
+// start/end/cutoff for one calendar month. For the real current month, "cutoff" is
+// today (DAY) — achieved reads everything strictly before today, i.e. through
+// yesterday, same as always. For any other (closed) month, cutoff is the day AFTER
+// its last date, so the same "< cutoff" logic picks up that month's final frozen row.
+function monthInfo(ym){const[y,m]=ym.split('-').map(Number),mon=m-1;
+  const n=new Date(y,mon+1,0).getDate(),start=ym+'-01',end=ym+'-'+String(n).padStart(2,'0');
+  const isCur=ym===DAY.slice(0,7),cutoff=isCur?DAY:addDays(end,1);
+  return{y,m:mon,n,start,end,cutoff,isCur}}
+
 /* ---------- filters ---------- */
 const inF=(c,z,b)=>(!F.c||c==F.c)&&(!F.z||z==F.z)&&(!F.b||b==F.b);
 function fillSel(){const brs=Object.keys(BRX).sort();const opt=(id,arr,all,cur)=>{$(id).innerHTML=`<option value="">${all}</option>`+arr.map(x=>`<option value="${esc(x)}" ${x==cur?'selected':''}>${esc(x)}</option>`).join('')};
+const months=availMonths();if(!months.includes(SELMONTH))SELMONTH=months[months.length-1];
+$('fM').innerHTML=months.map(m=>`<option value="${m}" ${m==SELMONTH?'selected':''}>${monthLabel(m)}</option>`).join('');
 opt('fC',[...new Set(brs.map(b=>BRX[b][1]))].sort(),'All clusters',F.c);
 opt('fZ',[...new Set(brs.filter(b=>!F.c||BRX[b][1]==F.c).map(b=>BRX[b][0]))].sort(),'All zones',F.z);
 opt('fB',brs.filter(b=>(!F.z||BRX[b][0]==F.z)&&(!F.c||BRX[b][1]==F.c)),'All workshops',F.b);
 $('fI').innerHTML='<option value="">All items</option>'+ITEMS.map(i=>`<option value="${i}" ${i==F.i?'selected':''}>${dsp(i)} — ${esc(NM[i])}</option>`).join('')}
+$('fM').onchange=e=>{SELMONTH=e.target.value;render()};
 ['C','Z','B','I'].forEach(k=>$('f'+k).onchange=e=>{const m={C:'c',Z:'z',B:'b',I:'i'}[k];F[m]=e.target.value;if(k=='C'){F.z='';F.b=''}if(k=='Z')F.b='';render()});
 
 /* ---------- calc ---------- */
-function timeCtx(){const d0=pd(DAY),y=d0.getFullYear(),m=d0.getMonth(),n=new Date(y,m+1,0).getDate(),wd=[];
-for(let i=1;i<=n;i++){const s=ymd(new Date(y,m,i));if(isWd(s))wd.push(s)}
-const past=wd.filter(x=>x<DAY).length,tot=wd.length,today=isWd(DAY)?1:0,ym=DAY.slice(0,7);
-return{wd,past,tot,rem:tot-past,fP:past/tot,fT:(past+today)/tot,ym,y,m,n}}
+// Time context for the SELECTED month (the month slicer), not necessarily today's real
+// month. For the real current month this is identical to before (cutoff=today, "past"
+// = working days strictly before today). For a closed earlier month, cutoff is the day
+// after month-end, so every working day in it counts as "past" and the month reads as
+// 100% elapsed. `mstart`/`cutoff` are passed down to every achieved-lookup so a month
+// with multiple months' rows sitting in the same sheet only ever sums its own month.
+function timeCtx(){const mi=monthInfo(SELMONTH||DAY.slice(0,7)),wd=[];
+for(let i=1;i<=mi.n;i++){const s=ymd(new Date(mi.y,mi.m,i));if(isWd(s))wd.push(s)}
+const past=wd.filter(x=>x<mi.cutoff).length,tot=wd.length,todayFlag=(mi.isCur&&isWd(DAY))?1:0;
+return{wd,past,tot,rem:tot-past,fP:tot?past/tot:0,fT:tot?(past+todayFlag)/tot:0,ym:mi.y+'-'+String(mi.m+1).padStart(2,'0'),y:mi.y,m:mi.m,n:mi.n,cutoff:mi.cutoff,mstart:mi.start,isCur:mi.isCur}}
 
-// achieved value (and qty/load) for one branch+dept, strictly before `cutoff`.
+// achieved value (and qty/load) for one branch+dept, strictly before `cutoff` and no
+// earlier than `mstart` — the selected month's own window, so a sheet holding several
+// months of rows (this month's plus every earlier closed month's) only ever sums or
+// snapshots the one month in view.
 // item: cumulative snapshot (latest reading before cutoff) — from the item-quantity feed.
 // no item: revenue — a genuine daily log, so this SUMS every day's row before cutoff.
-function achievedBranchDept(branch,dept,cutoff,item){
+function achievedBranchDept(branch,dept,cutoff,item,mstart){
   if(item){
-    const snap=latestBefore(ITEMQ[branch+'|'+dept+'|'+item],cutoff);
+    const snap=latestBefore(ITEMQ[branch+'|'+dept+'|'+item],cutoff,mstart);
     const qty=snap?snap.qty:0;
     return {value:qty*(P[item]||0), qty, load:0};
   }
-  const r=sumRevBefore(branch+'|'+dept,cutoff);
+  const r=sumRevBefore(branch+'|'+dept,cutoff,mstart);
   return {value:r.value, qty:0, load:r.load};
 }
 
 // per-item achieved units, kept SEPARATE by department (srv vs bds), for the current
 // cluster/zone/workshop filter — used to show "SRV" / "BDS" alongside the combined
 // figure the rest of the item views already report.
-function itemSplit(cutoff){
+function itemSplit(cutoff,mstart){
   const out={}; ITEMS.forEach(i=>out[i]={srv:0,bds:0});
   Object.keys(BRX).filter(b=>inF(BRX[b][1],BRX[b][0],b)).forEach(b=>{
     ['srv','bds'].forEach(dept=>{
       ITEMS.forEach(i=>{
-        const snap=latestBefore(ITEMQ[b+'|'+dept+'|'+i],cutoff);
+        const snap=latestBefore(ITEMQ[b+'|'+dept+'|'+i],cutoff,mstart);
         if(snap) out[i][dept]+=snap.qty;
       });
     });
@@ -372,12 +437,12 @@ function compute(g,sel){
     ['srv','bds'].forEach(dept=>{
       if(g=='item'){
         ITEMS.forEach(i=>{
-          const r=achievedBranchDept(b,dept,DAY,i); if(!r.value&&!r.qty) return;
+          const r=achievedBranchDept(b,dept,T.cutoff,i,T.mstart); if(!r.value&&!r.qty) return;
           const e=get(i,dsp(i)+' — '+NM[i]); e.AA+=r.value; e.AQ+=r.qty;
         });
         return;
       }
-      const r=achievedBranchDept(b,dept,DAY,sel||null); if(!r.value&&!r.qty) return;
+      const r=achievedBranchDept(b,dept,T.cutoff,sel||null,T.mstart); if(!r.value&&!r.qty) return;
       if(g=='advisor'){
         const advs=ADV.filter(a=>a.br===b && a.dept===dept && inF(a.c,a.z,a.br));
         if(!advs.length){ const e=get('U|'+b+'|'+dept,'Unassigned · '+b); e.AA+=r.value; e.AQ+=r.qty; return; }
@@ -400,14 +465,13 @@ function compute(g,sel){
 
 // live-load-based current-performance strip (real cars-serviced count, not item-unit count)
 function perfOf(){
-  const cutoff=DAY;
+  const T=timeCtx(),cutoff=T.cutoff,mstart=T.mstart;
   let value=0, load=0;
   Object.keys(BRX).forEach(b=>{ if(!inF(BRX[b][1],BRX[b][0],b)) return;
-    ['srv','bds'].forEach(dept=>{ const r=sumRevBefore(b+'|'+dept,cutoff); value+=r.value; load+=r.load; });
+    ['srv','bds'].forEach(dept=>{ const r=sumRevBefore(b+'|'+dept,cutoff,mstart); value+=r.value; load+=r.load; });
   });
   const {L}=compute('cluster',''); let LA=0,TA=0; L.forEach(e=>{LA+=e.LA;TA+=e.TA});
   const advN=ADV.filter(a=>inF(a.c,a.z,a.br)).length||1;
-  const T=timeCtx();
   const balance=Math.max(0,TA-value);
   const needDay=T.rem>0?balance/T.rem:balance;
   const avgCar=load?value/load:0;
@@ -417,7 +481,7 @@ function perfOf(){
 }
 function perfStrip(){const p=perfOf();
 const onTrack=p.avgDay>=p.needDay*0.999;
-return`<h2>Current Business Performance <span style="font-weight:400;color:var(--mut)">— this month so far, current filters</span></h2><div class="chips">
+return`<h2>Current Business Performance <span style="font-weight:400;color:var(--mut)">— ${monthLabel(SELMONTH)}${p.T.isCur?' so far':' (closed)'}, current filters</span></h2><div class="chips">
 <div class="k"><div class="l">Avg / Day</div><div class="v">${rs(p.avgDay)}</div><div class="s">${p.T.past} working day(s) so far</div></div>
 <div class="k"><div class="l">Avg / Advisor / Day</div><div class="v">${rs(p.avgAdvDay)}</div><div class="s">${p.advN} advisor(s)</div></div>
 <div class="k"><div class="l">Avg / Car (Ticket Size)</div><div class="v">${p.AQ?rs(p.avgCar):'—'}</div><div class="s">${q(p.AQ)} cars/units so far</div></div>
@@ -448,12 +512,18 @@ function head(T,tot,p){
         balTY=Math.max(0,TY-A),aheadTY=Math.max(0,A-TY),
         balance=Math.max(0,target-A),
         need=T.rem>0?balance/T.rem:balance,
-        dayPlan=T.tot?target/T.tot:0;
+        dayPlan=T.tot?target/T.tot:0,
+        asOf=addDays(T.cutoff,-1),
+        achLbl=T.isCur?'Achieved till yesterday':'Achieved (month closed)',
+        tgtLbl=T.isCur?'Target till yesterday':'Target (full month)',
+        balLbl=T.isCur?"Balance vs yesterday's target":'Balance vs final target',
+        todayLbl=T.isCur?"Today's target":'Shortfall',
+        todaySub=T.isCur?`<span style="font-weight:600;color:var(--mut)">(balance ÷ days left)</span>`:'';
   let kpis=`<div class="kpis"><div class="k"><div class="l">Month target</div><div class="v">${rs(target)}</div><div class="s">${T.tot} working days · ${rs(dayPlan)}/day flat pace</div></div>
-<div class="k"><div class="l">Achieved till yesterday</div><div class="v">${rs(A)}</div><div class="s">${target?(A/target*100).toFixed(0)+'% of month':'—'}</div></div>
-<div class="k"><div class="l">Target till yesterday</div><div class="v">${rs(TY)}</div><div class="s">as of ${addDays(DAY,-1)}</div></div>
-<div class="k"><div class="l">Balance vs yesterday's target</div><div class="v ${balTY>0?'bad':'good'}">${balTY>0?rs(balTY):'Ahead (+'+rs(aheadTY)+')'}</div><div class="s ${balTY>0?'bad':'good'}">${balTY>0?'Behind pace':'On/ahead of pace'}</div></div>
-<div class="k"><div class="l">Today's target <span style="font-weight:600;color:var(--mut)">(balance ÷ days left)</span></div><div class="v ${need>dayPlan*1.05?'bad':'good'}">${rs(need)}</div><div class="s">${T.rem} working day(s) left incl. today</div></div></div>`;
+<div class="k"><div class="l">${achLbl}</div><div class="v">${rs(A)}</div><div class="s">${target?(A/target*100).toFixed(0)+'% of month':'—'}</div></div>
+<div class="k"><div class="l">${tgtLbl}</div><div class="v">${rs(TY)}</div><div class="s">as of ${asOf}</div></div>
+<div class="k"><div class="l">${balLbl}</div><div class="v ${balTY>0?'bad':'good'}">${balTY>0?rs(balTY):'Ahead (+'+rs(aheadTY)+')'}</div><div class="s ${balTY>0?'bad':'good'}">${balTY>0?(T.isCur?'Behind pace':'Fell short'):(T.isCur?'On/ahead of pace':'Hit / exceeded target')}</div></div>
+<div class="k"><div class="l">${todayLbl} ${todaySub}</div><div class="v ${need>dayPlan*1.05?'bad':'good'}">${rs(need)}</div><div class="s">${T.isCur?(T.rem+' working day(s) left incl. today'):'month closed — final gap'}</div></div></div>`;
   if(p){
     const okDay=p.avgDay>=p.needDay*0.999, okAdv=p.avgAdvDay>=p.needAdvDay*0.999;
     kpis+=`<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--mut);margin:-6px 0 14px">
@@ -483,10 +553,10 @@ function homePerfBy(){
     charts.push(new Chart(el,{type:'bar',data:{labels:top.map(r=>r.l),datasets:[
       {label:'Achieved',data:top.map(r=>r.achieved),backgroundColor:'#2E6FDB',borderRadius:4,maxBarThickness:22},
       {label:'Target till date',data:top.map(r=>r.tillDate),backgroundColor:'#E8703A',borderRadius:4,maxBarThickness:22}
-    ]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'},title:{display:true,text:'Achieved vs target till date, up to '+DAY+' — tracked vs behind'}},scales:{x:{ticks:{callback:v=>rs(v)}}}}}));
+    ]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'},title:{display:true,text:'Achieved vs target till date, through '+addDays(T.cutoff,-1)+' — tracked vs behind'}},scales:{x:{ticks:{callback:v=>rs(v)}}}}}));
   },0)}
   const seg=(arr,cur,fn)=>`<div class="seg">${arr.map(([k,l])=>`<button class="${k==cur?'on':''}" onclick="${fn}('${k}')">${l}</button>`).join('')}</div>`;
-  return`<h2>Performance By <span style="font-weight:400;color:var(--mut)">— ${T.tot} working days this month · ${T.rem} left · click a row to drill in</span></h2>
+  return`<h2>Performance By <span style="font-weight:400;color:var(--mut)">— ${monthLabel(SELMONTH)} · ${T.tot} working days${T.isCur?(' · '+T.rem+' left'):' (closed)'} · click a row to drill in</span></h2>
 <div style="margin-bottom:10px">${seg([['cluster','Cluster'],['zone','Zone'],['workshop','Branch / Workshop'],['advisor','Advisor']],level,'setLevel')}</div>
 <div class="grid2">
 ${top.length?`<div class="cv" style="height:${Math.max(220,top.length*34)}px"><canvas id="homeChart"></canvas></div>`:'<div class="tw" style="padding:20px;color:var(--mut)">No rows for this scope</div>'}
@@ -495,21 +565,26 @@ ${rows.length?rows.map(r=>{const s=st(r.pct),advOk=r.avgAdvDay>=r.reqAdvDay*0.99
 </tbody></table></div></div>`}
 function bigBar(tot,T){const target=tot.TA,A=tot.AA,pct=target?Math.min(100,A/target*100):0;
 const needPct=T?Math.min(100,T.fP*100):pct;
-return`<div class="bigbar"><div class="row"><span class="pct">${pct.toFixed(0)}% achieved</span><span class="amt">${rs(A)} of ${rs(target)}</span></div><div class="pbbig"><i class="need" style="width:${needPct}%"></i><i class="ach" style="width:${pct}%"></i></div><div style="font-size:11px;color:var(--mut);margin-top:5px;display:flex;align-items:center;gap:14px"><span><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--good);margin-right:4px;vertical-align:-1px"></i>Achieved</span><span><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--acc);margin-right:4px;vertical-align:-1px"></i>Needed by today (${needPct.toFixed(0)}%)</span></div></div>`}
+const needLbl=(T&&!T.isCur)?'Full month ('+needPct.toFixed(0)+'%)':'Needed by today ('+needPct.toFixed(0)+'%)';
+return`<div class="bigbar"><div class="row"><span class="pct">${pct.toFixed(0)}% achieved</span><span class="amt">${rs(A)} of ${rs(target)}</span></div><div class="pbbig"><i class="need" style="width:${needPct}%"></i><i class="ach" style="width:${pct}%"></i></div><div style="font-size:11px;color:var(--mut);margin-top:5px;display:flex;align-items:center;gap:14px"><span><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--good);margin-right:4px;vertical-align:-1px"></i>Achieved</span><span><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--acc);margin-right:4px;vertical-align:-1px"></i>${needLbl}</span></div></div>`}
 function vToday(){U='qty';const{L,T}=compute('item','');const{t}=totOf();L.sort((a,b)=>b.TA-a.TA);
-const SPLIT=itemSplit(DAY);
-return bigBar(t,T)+head(T,t,perfOf())+perfStrip()+homePerfBy()+`<h2>What each item needs today — ${DAY} <span style="font-weight:400;color:var(--mut)">(remaining balance spread evenly across the working days left)</span></h2><div class="grid">`+L.filter(e=>e.T>0.5||e.A>0.5).map(e=>{
+const SPLIT=itemSplit(T.cutoff,T.mstart);
+const heading=T.isCur?('What each item needs today — '+DAY):('What each item fell short by — '+monthLabel(SELMONTH)+' (closed)');
+const headingSub=T.isCur?'(remaining balance spread evenly across the working days left)':'(final gap for the month — no working days left)';
+const tgtLbl=T.isCur?'Target till yesterday':'Target (full month)', achLbl=T.isCur?'Achieved till yesterday':'Achieved (final)';
+const heroLbl=T.isCur?'units today':'units short';
+return bigBar(t,T)+head(T,t,perfOf())+perfStrip()+homePerfBy()+`<h2>${heading} <span style="font-weight:400;color:var(--mut)">${headingSub}</span></h2><div class="grid">`+L.filter(e=>e.T>0.5||e.A>0.5).map(e=>{
   const code=itemOf(e.k),c=stCls(e.pct),price=P[code]||0;
   const noTarget=e.T<=0.5;
   const pctTD=e.pct==null?(e.A>0?100:0):Math.min(100,Math.max(0,e.pct));
   const sp=SPLIT[code]||{srv:0,bds:0};
   return`<div class="ic2 ${c}" onclick="openItem('${code}')">
 <div class="h"><b>${dsp(code)}</b><span class="nm">${esc((e.l.split(' — ')[1]||''))}</span></div>
-<div class="hero">${q(Math.ceil(e.need))}<span class="heroLbl">units today</span></div>
+<div class="hero">${q(Math.ceil(e.need))}<span class="heroLbl">${heroLbl}</span></div>
 <div class="sub">${rs(e.need*price)} · plan/day ${q(e.dayPlan)}</div>
 <div class="pbbig g"><i style="width:${pctTD}%"></i></div>
-<div class="r"><span>Target till yesterday</span><b>${q(e.TP)} u</b></div>
-<div class="r"><span>Achieved till yesterday</span><b>${q(e.A)} u</b></div>
+<div class="r"><span>${tgtLbl}</span><b>${q(e.TP)} u</b></div>
+<div class="r"><span>${achLbl}</span><b>${q(e.A)} u</b></div>
 <div class="r ${e.gap>0?'gap':''}"><span>${e.gap>0?'Behind':'Ahead'}</span><b style="${e.gap<=0?'color:var(--good)':''}">${q(Math.abs(e.gap))} u</b></div>
 <div class="extra"><span>Month target ${q(e.T)} u · Srv ${q(sp.srv)} · Bds ${q(sp.bds)}</span>${noTarget?'<span>No target set</span>':''}</div>
 </div>`}).join('')+'</div>'}
@@ -520,8 +595,8 @@ if(pie.length){setTimeout(()=>{const el=$('pieChart');if(!el)return;
 const palette=['#2E6FDB','#0F9D74','#C0392B','#E8A33D','#8E44AD','#16A085','#D35400','#2C3E50','#27AE60','#C0392B','#7F8C8D','#2980B9','#F39C12','#9B59B6','#1ABC9C','#E74C3C'];
 charts.push(new Chart(el,{type:'doughnut',data:{labels:pie.map(e=>e.l),datasets:[{data:pie.map(e=>e.v),backgroundColor:pie.map((_,i)=>palette[i%palette.length])}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:10,font:{size:11}}},title:{display:true,text:'Achieved revenue mix by item — till date'},tooltip:{callbacks:{label:c=>c.label+': '+rs(c.parsed)}}}}}));
 },0)}
-const SPLIT=itemSplit(DAY);
-return head(T,t,perfOf())+`<h2>Achievement till date (up to ${DAY}, excluding today)</h2>`+
+const SPLIT=itemSplit(T.cutoff,T.mstart);
+return head(T,t,perfOf())+`<h2>Achievement till date — ${monthLabel(SELMONTH)}${T.isCur?(' (up to '+addDays(T.cutoff,-1)+', excluding today)'):' (closed, full month)'}</h2>`+
 (pie.length?`<div class="cv" style="height:300px"><canvas id="pieChart"></canvas></div>`:'')+
 `<div class="tw"><table><thead><tr><th>Item</th><th>Month target</th><th>Target till date</th><th>Achieved (combined)</th><th>— Srv</th><th>— Bds</th><th>Gap</th><th>Achv %</th><th>Gap ₹</th><th>Status</th></tr></thead><tbody>`+
 L.filter(e=>e.T>0.5||e.A>0.5).map(e=>{const s=st(e.pct),code=itemOf(e.k),sp=SPLIT[code]||{srv:0,bds:0};return`<tr class="cl" onclick="openItem('${code}')"><td>${e.l}</td><td>${q(e.T)}</td><td>${q(e.TP)}</td><td>${q(e.A)}</td><td>${q(sp.srv)}</td><td>${q(sp.bds)}</td><td class="${e.gap>0?'bad':'good'}">${e.gap>0?'-'+q(e.gap):'+'+q(-e.gap)}</td><td>${e.pct==null?'—':e.pct.toFixed(0)+'%'}</td><td>${rs(e.gap*P[code])}</td><td><span class="tag ${s[1]}">${s[0]}</span></td></tr>`}).join('')+'</tbody></table></div><div style="font-size:12px;color:var(--mut);margin-top:8px">Counts are units. "Srv"/"Bds" are the SRV Item / BDS Item sheet totals that make up the combined Achieved figure. Click an item to see it by workshop / advisor.</div>'}
@@ -545,13 +620,15 @@ const levelKey=()=>level;
 function setLevel(l){level=l;render()}function setU(u){U=u;render()}
 function drill(k){if(level=='cluster'){F.c=k;level='zone'}else if(level=='zone'){F.z=k;const m=Object.keys(BRX).find(b=>BRX[b][0]==k);F.c=m?BRX[m][1]:'';level='workshop'}else if(level=='workshop'){F.b=k;F.z=(BRX[k]||['',''])[0];F.c=(BRX[k]||['',''])[1];level='advisor'}render()}
 
-// cumulative achieved (whole scope, optional item) AS OF a given calendar day — the sheet's own semantics
-function cumulativeAt(day,item){
+// cumulative achieved (whole scope, optional item) AS OF a given calendar day, bounded
+// to the selected month (mstart) so a day just before the month started reads as 0
+// instead of picking up a previous closed month's frozen total — the sheet's own semantics.
+function cumulativeAt(day,item,mstart){
   let v=0;
   Object.keys(BRX).forEach(b=>{ if(!inF(BRX[b][1],BRX[b][0],b)) return;
     ['srv','bds'].forEach(dept=>{
-      if(item){ const snap=latestAtOrBefore(ITEMQ[b+'|'+dept+'|'+item],day); if(snap) v+=snap.qty*(P[item]||0); }
-      else { v+=sumRevAtOrBefore(b+'|'+dept,day).value; }
+      if(item){ const snap=latestAtOrBefore(ITEMQ[b+'|'+dept+'|'+item],day,mstart); if(snap) v+=snap.qty*(P[item]||0); }
+      else { v+=sumRevAtOrBefore(b+'|'+dept,day,mstart).value; }
     });
   });
   return v;
@@ -560,11 +637,11 @@ function vTrend(){
   const T=timeCtx(),sel=F.i;const{t:tHead}=totOf();
   let tgt=0;ADV.forEach(a=>{if(inF(a.c,a.z,a.br))tgt+=sel?(a.tA[sel]||0):a.tgt});
   const days=T.wd;
-  const A=cumulativeAt(addDays(DAY,-1),sel);
+  const A=cumulativeAt(addDays(T.cutoff,-1),sel,T.mstart);
   const need=T.rem>0?Math.max(0,(tgt-A)/T.rem):Math.max(0,tgt-A);
   const act=[],cA=[],cT=[],plan=[],rev=[],path=[];
-  days.forEach((d,i)=>{const past=d<DAY;plan.push(tgt/T.tot);cT.push(tgt*(i+1)/T.tot);
-    if(past){const cum=cumulativeAt(d,sel);const prev=cumulativeAt(addDays(d,-1),sel);cA.push(cum);act.push(cum-prev);rev.push(null);}
+  days.forEach((d,i)=>{const past=d<T.cutoff;plan.push(tgt/T.tot);cT.push(tgt*(i+1)/T.tot);
+    if(past){const cum=cumulativeAt(d,sel,T.mstart);const prev=cumulativeAt(addDays(d,-1),sel,T.mstart);cA.push(cum);act.push(cum-prev);rev.push(null);}
     else{cA.push(null);act.push(null);rev.push(need);}
     path.push(null);
   });
@@ -572,13 +649,14 @@ function vTrend(){
   for(let i=T.past;i<days.length;i++)path[i]=A+need*(i-T.past+1);
   setTimeout(()=>{const lb=days.map(d=>+d.slice(8)),o=(t)=>({responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:t}},scales:{y:{ticks:{callback:v=>rs(v)}}},interaction:{mode:'index',intersect:false}});
   const L=(l,d,c,dash)=>({label:l,data:d,borderColor:c,backgroundColor:c,pointRadius:2,tension:.25,borderDash:dash||[],spanGaps:false});
-  charts.push(new Chart($('c1'),{type:'line',data:{labels:lb,datasets:[L('Achieved / day',act,'#2E6FDB'),L('Plan / day',plan,'#0F9D74',[6,4]),L('Revised need / day',rev,'#C0392B',[2,3])]},options:o('Day-wise achievement — '+(sel?dsp(sel):'all items'))}));
-  charts.push(new Chart($('c2'),{type:'line',data:{labels:lb,datasets:[L('Cumulative achieved',cA,'#2E6FDB'),L('Cumulative target',cT,'#0F9D74',[6,4]),L('Path needed to hit target',path,'#C0392B',[2,3])]},options:o('Cumulative vs target')}))},0);
+  charts.push(new Chart($('c1'),{type:'line',data:{labels:lb,datasets:[L('Achieved / day',act,'#2E6FDB'),L('Plan / day',plan,'#0F9D74',[6,4]),L('Revised need / day',rev,'#C0392B',[2,3])]},options:o('Day-wise achievement — '+monthLabel(SELMONTH)+' — '+(sel?dsp(sel):'all items'))}));
+  charts.push(new Chart($('c2'),{type:'line',data:{labels:lb,datasets:[L('Cumulative achieved',cA,'#2E6FDB'),L('Cumulative target',cT,'#0F9D74',[6,4]),L('Path needed to hit target',path,'#C0392B',[2,3])]},options:o('Cumulative vs target — '+monthLabel(SELMONTH))}))},0);
   return head(T,tHead,perfOf())+`<div class="cv"><canvas id="c1"></canvas></div><div class="cv"><canvas id="c2"></canvas></div><p style="font-size:11.5px;color:var(--mut);margin-top:-4px">"Achieved / day" is the change between consecutive sheet updates — if a day is skipped, its progress shows on the next date the sheet was updated.</p>`}
 
 function render(){charts.forEach(c=>{try{c.destroy()}catch(e){}});charts=[];fillSel();$('tabs').innerHTML=TABS.map(([k,l])=>`<button class="${k==tab?'on':''}" onclick="tab='${k}';if(tab=='break')U=F.i?'qty':'amt';render()">${l}</button>`).join('');
 const ld=lastDataDate();const nBranches=Object.keys(REV).map(k=>k.split('|')[0]).filter((v,i,a)=>a.indexOf(v)===i).length;
-$('stat').textContent=ld?`Cumulative through ${ld} · ${nBranches} branch(es) reporting`:'No data synced yet';
+const T0=timeCtx();
+$('stat').textContent=(monthLabel(SELMONTH)+(T0.isCur?(' · in progress, through '+addDays(T0.cutoff,-1)):' · closed, final'))+(ld?` · ${nBranches} branch(es) reporting`:' · no data synced yet');
 let h='';
 if(SYNC_ERR)h+=`<div class="note">⚠ Could not reach the Google Sheet just now (${esc(SYNC_ERR)}). ${LAST_SYNC?'Showing the last successfully synced data.':'Click Refresh to try again.'}</div>`;
 if(!ld && !SYNC_ERR)h+=`<div class="note" style="background:var(--card);color:var(--ink);border:1px solid var(--line)">No data synced from the sheet yet.</div>`;
